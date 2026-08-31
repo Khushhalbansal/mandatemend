@@ -5,6 +5,35 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-01 — iteration 1: cleared the iteration-0 STOP-THE-LINE (compliance_violations 5 -> 0)
+**Root cause (one bug class).** All 5 iteration-0 violations were `CONTACT_FREQUENCY: 6 > cap 3`
+on `U67` (limit-exceeded) mandates whose amount exceeds even the partial-charge cap. Two
+defects combined:
+  1. `rule_contact_frequency` was applied only to `SEND_NOTIFICATION`. But
+     `OFFER_ALTERNATE_METHOD` is also an outbound customer contact, and `invariants.py`
+     counts it as one — so the engine's and the checker's definitions of "a contact"
+     disagreed. The engine happily emitted `OFFER_ALTERNATE_METHOD` every round.
+  2. The agent loop had no stall-breaker: an advisor that returns the same non-charging
+     recommendation each round made the loop repeat an identical action until `_MAX_ROUNDS`.
+
+**Fix (3 files, no test/label changes).**
+  * `policy/rules.py`: added `CONTACT_ACTIONS` (= SEND_NOTIFICATION + OFFER_ALTERNATE_METHOD)
+    and `NON_CHARGING_LOOP_ACTIONS`.
+  * `policy/engine.py`: the method-switch branch now runs `rule_contact_frequency`; on cap it
+    returns `STOP_AND_ESCALATE`.
+  * `agent.py`: stall-breaker — the same non-charging `action_type` in two consecutive rounds
+    -> `STOP_AND_ESCALATE` + audit `escalation` entry. Also the old `NO_ACTION`x2 path now
+    escalates instead of a silent `break`. New stated invariant: **every mandate terminates
+    RECOVERED or STOP_AND_ESCALATE, never dropped** (post-loop guard enforces it).
+
+**Known, expected consequence to fix next (NOT stop-the-line).** With the untrained heuristic
+advisors, recovery fell 47.08% -> 40.83% and escalations rose to 178/300, because the
+heuristic intervention advisor recommends the same thing every round for the largest cause
+bucket (INSUFFICIENT_FUNDS -> WHATSAPP_UPI_LINK), which the stall-breaker now correctly
+stops. The heuristic advisor is only a baseline; the round-aware strategy + trained
+retry-timing (survival) and uplift models are what turn this into positive lift. That is the
+next work item, tracked as iteration 2+.
+
 ### 2026-09-01 — scaffold + stack decisions (log-and-proceed, CLAUDE.md §3.2)
 - **Language: Python 3.11+** (local machine has 3.13.0). ML + FastAPI ecosystem, matches CLAUDE.md's pytest references.
 - **DB: PostgreSQL 16 via docker-compose**, not SQLite. Reasoning: CLAUDE.md §2 requires idempotency enforced by a

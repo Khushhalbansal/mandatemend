@@ -254,6 +254,16 @@ class PolicyEngine:
 
         # ---- method switch -------------------------------------------
         if action_type is ActionType.OFFER_ALTERNATE_METHOD:
+            # An "offer alternate method" message is an outbound customer contact, so it is
+            # subject to the same weekly contact cap as any notification.
+            cf = rule_contact_frequency(state)
+            trace.append(cf)
+            if not cf.passed:
+                return self._terminal(
+                    event, diag, trace, ActionType.STOP_AND_ESCALATE,
+                    reason="contact cap reached; cannot send another alternate-method offer",
+                    human=True,
+                )
             alt = (
                 PaymentMethod.CARD_EMANDATE
                 if event.method is PaymentMethod.UPI_AUTOPAY
