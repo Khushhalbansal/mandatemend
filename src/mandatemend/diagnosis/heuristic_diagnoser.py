@@ -47,7 +47,9 @@ class HeuristicDiagnoser:
         if event.mandate_state is MandateState.EXPIRED:
             return self._d(FailureCause.MANDATE_EXPIRED, 0.97, "mandate_state=EXPIRED")
         if event.mandate_state is MandateState.REVOKED:
-            return self._d(FailureCause.MANDATE_EXPIRED, 0.9, "mandate_state=REVOKED (treat as dead)")
+            return self._d(
+                FailureCause.MANDATE_EXPIRED, 0.9, "mandate_state=REVOKED (treat as dead)"
+            )
 
         # 2. Amount over the per-transaction mandate cap -> genuine limit breach.
         if event.amount_paise > event.mandate_max_amount_paise:

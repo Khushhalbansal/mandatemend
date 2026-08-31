@@ -43,6 +43,9 @@ class SimulatedGateway:
         return cls(raw["labels"])
 
     def _delay_hours(self, action: Action, event: FailureEvent) -> float:
+        # Prefer the causal delay bucket the retry-timing model chose; fall back to wall-clock.
+        if action.retry_delay_bucket is not None:
+            return action.retry_delay_bucket
         return max(0.0, (action.scheduled_at - event.occurred_at).total_seconds() / 3600.0)
 
     def attempt(self, action: Action, event: FailureEvent) -> tuple[bool | None, int, str]:

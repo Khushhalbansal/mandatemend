@@ -131,11 +131,17 @@ def rule_outreach_economics(p_recover: float, amount_at_risk_paise: int) -> Rule
 
 
 def rule_stopping(state: LoopState) -> RuleEvaluation:
-    ok = state.consecutive_hard_declines < 2
+    """Escalate once the NPCI retry budget is spent with in-session declines, or on a run of
+    in-session hard declines that already equals the budget. Pre-session failure history is
+    NOT counted here — it feeds the diagnosis/uplift models, not the stop decision — so the
+    agent always gets to spend its retry budget before this rule bites."""
+    limit = settings.npci_max_retries
+    ok = state.consecutive_hard_declines < limit
     return RuleEvaluation(
         rule="stopping_rule",
         passed=ok,
-        detail=f"consecutive_hard_declines={state.consecutive_hard_declines} (stop at 2)",
+        detail=f"in-session consecutive_hard_declines={state.consecutive_hard_declines} "
+        f"(stop at {limit})",
     )
 
 

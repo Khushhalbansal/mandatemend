@@ -28,17 +28,77 @@ from mandatemend.models.advisors import (
     HeuristicRetryAdvisor,
     InterventionAdvisor,
     RetryAdvisor,
+    SurvivalRetryAdvisor,
+    TLearnerUpliftAdvisor,
 )
+from mandatemend.models.retry_timing import ARTIFACT as _RETRY_ARTIFACT
+from mandatemend.models.uplift import ARTIFACT as _UPLIFT_ARTIFACT
 from mandatemend.policy.engine import PolicyEngine
 from mandatemend.policy.rules import NON_CHARGING_LOOP_ACTIONS, LoopState
 from mandatemend.schemas import (
     ActionType,
     FailureEvent,
+    InterventionAdvice,
+    InterventionType,
     MandateResolution,
+    RetryTimingAdvice,
+    TypedDiagnosis,
 )
+from mandatemend.simulation import snap_delay
 
 _CHARGES = {ActionType.RETRY, ActionType.PARTIAL_CHARGE}
-_MAX_ROUNDS = 6
+# Enough rounds to spend the full NPCI retry budget (3) with pre-debit notices interleaved.
+_MAX_ROUNDS = 10
+
+
+# Causes where the frozen-batch diagnosis (iteration 2) showed the agent losing to a plain
+# fixed-schedule retry because the uplift advisor steered to a non-retry arm: patient
+# multi-retry is the real answer (transient tech declines; riding out a bank-downtime window;
+# non-churn accounts mislabelled SUSPECTED_CHURN that just need another attempt near payday).
+_RETRY_FIRST_CAUSES = ("TECH_DECLINE", "BANK_DOWNTIME", "SUSPECTED_CHURN")
+
+
+def _prefer_retry_when_competitive(
+    retry_adv: RetryTimingAdvice,
+    interv_adv: InterventionAdvice,
+    diag: TypedDiagnosis,
+    retries_used: int,
+) -> InterventionAdvice:
+    """Targeted override: on `_RETRY_FIRST_CAUSES`, spend the retry budget before an arm."""
+    if retries_used >= settings.npci_max_retries:
+        return interv_adv
+    if diag.cause.value not in _RETRY_FIRST_CAUSES:
+        return interv_adv
+    if interv_adv.intervention in (
+        InterventionType.RETRY_ONLY,
+        InterventionType.PARTIAL_CHARGE,
+    ):
+        return interv_adv
+    return InterventionAdvice(
+        intervention=InterventionType.RETRY_ONLY,
+        uplift=max(0.0, retry_adv.p_success - 0.06),
+        p_recover=retry_adv.p_success,
+        ranked=[(InterventionType.RETRY_ONLY, retry_adv.p_success), *interv_adv.ranked],
+        model_source=f"{interv_adv.model_source}+retry-first",
+    )
+
+
+def _action_to_intervention(
+    action_type: ActionType, channel: str | None
+) -> InterventionType | None:
+    if action_type is ActionType.PARTIAL_CHARGE:
+        return InterventionType.PARTIAL_CHARGE
+    if action_type is ActionType.GRACE_EXTEND:
+        return InterventionType.GRACE_48H
+    if action_type is ActionType.OFFER_ALTERNATE_METHOD:
+        return InterventionType.METHOD_SWITCH
+    if action_type is ActionType.SEND_NOTIFICATION:
+        return (
+            InterventionType.WHATSAPP_UPI_LINK
+            if (channel or "whatsapp") == "whatsapp"
+            else InterventionType.SMS_REMINDER
+        )
+    return None  # RETRY is timing-driven, not an "arm" to exhaust
 
 
 @dataclass
@@ -51,12 +111,30 @@ class Agent:
     audit_enabled: bool = True
 
     @classmethod
-    def default(cls, gateway: Gateway | None = None, *, audit_enabled: bool = True) -> Agent:
+    def default(
+        cls,
+        gateway: Gateway | None = None,
+        *,
+        audit_enabled: bool = True,
+        trained: bool | None = None,
+    ) -> Agent:
+        """`trained=None` -> use trained advisors iff both model artifacts exist."""
         gw = gateway or get_gateway()
+        use_trained = (
+            trained
+            if trained is not None
+            else (_RETRY_ARTIFACT.exists() and _UPLIFT_ARTIFACT.exists())
+        )
+        if use_trained:
+            retry_adv: RetryAdvisor = SurvivalRetryAdvisor()
+            interv_adv: InterventionAdvisor = TLearnerUpliftAdvisor()
+        else:
+            retry_adv = HeuristicRetryAdvisor()
+            interv_adv = HeuristicInterventionAdvisor()
         return cls(
             diagnoser=get_diagnoser(),
-            retry_advisor=HeuristicRetryAdvisor(),
-            intervention_advisor=HeuristicInterventionAdvisor(),
+            retry_advisor=retry_adv,
+            intervention_advisor=interv_adv,
             engine=PolicyEngine(),
             executor=Executor(gw),
             audit_enabled=audit_enabled,
@@ -76,7 +154,7 @@ class Agent:
             round_no=0,
             retries_used=0,
             contacts_this_week=event.history.contacts_this_week,
-            consecutive_hard_declines=event.history.consecutive_failures,
+            consecutive_hard_declines=0,  # in-session only; history feeds the models, not the stop
             grace_used=event.history.grace_used,
         )
         timeline = []
@@ -86,17 +164,35 @@ class Agent:
         escalated = False
         last_noncharge_action: ActionType | None = None
         noncharge_repeat = 0
+        tried_delays: set[float] = set()
+        tried_interventions: set[InterventionType] = set()
 
         for rnd in range(_MAX_ROUNDS):
             state.round_no = rnd
-            retry_adv = self.retry_advisor.advise(event, diag)
-            interv_adv = self.intervention_advisor.advise(event, diag)
+            retry_adv = self.retry_advisor.advise(event, diag, tried_delays=frozenset(tried_delays))
+            # The first retry always needs a 24h pre-debit notice first, so a sub-25h delay
+            # only makes the engine bounce to "send notice" and can trip the stall-breaker.
+            # Align the ask with that constraint; the model's true timing applies to retries
+            # 2 and 3, once a notice is on file.
+            if state.last_notice_at is None and retry_adv.delay_hours < 25.0:
+                retry_adv = retry_adv.model_copy(update={"delay_hours": 25.0})
+            interv_adv = self.intervention_advisor.advise(
+                event, diag, tried=frozenset(tried_interventions)
+            )
+            interv_adv = _prefer_retry_when_competitive(
+                retry_adv, interv_adv, diag, state.retries_used
+            )
             action = self.engine.decide(event, diag, retry_adv, interv_adv, state)
             if self.audit_enabled:
                 ledger.append(
-                    event.mandate_id, "policy.decision",
-                    {"round": rnd, "action": action.action_type.value, "reason": action.reason,
-                     "rule_trace": [rt.model_dump() for rt in action.rule_trace]},
+                    event.mandate_id,
+                    "policy.decision",
+                    {
+                        "round": rnd,
+                        "action": action.action_type.value,
+                        "reason": action.reason,
+                        "rule_trace": [rt.model_dump() for rt in action.rule_trace],
+                    },
                 )
 
             result = self.executor.execute(action, event)
@@ -126,7 +222,14 @@ class Agent:
                 last_noncharge_action = None
                 noncharge_repeat = 0
 
-            # 3. apply executed effects
+            # 3. apply executed effects + record what has been tried (round-awareness)
+            if result.executed:
+                if at in _CHARGES and action.retry_delay_bucket is not None:
+                    tried_delays.add(snap_delay(action.retry_delay_bucket))
+                arm = _action_to_intervention(at, action.channel)
+                if arm is not None:
+                    tried_interventions.add(arm)
+
             if result.executed and at in _CHARGES:
                 state.retries_used += 1
                 if result.gateway_success:
@@ -181,7 +284,8 @@ class Agent:
         )
         if self.audit_enabled:
             ledger.append(
-                event.mandate_id, "resolution",
+                event.mandate_id,
+                "resolution",
                 {k: v for k, v in res.model_dump().items() if k != "timeline"},
             )
         return res

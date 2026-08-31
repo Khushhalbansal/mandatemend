@@ -4,16 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_prefix="MANDATEMEND_", env_file=".env", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_prefix="MANDATEMEND_", env_file=".env", extra="ignore")
 
     db_url: str = "postgresql+psycopg://mandatemend:mandatemend@localhost:5432/mandatemend"
 

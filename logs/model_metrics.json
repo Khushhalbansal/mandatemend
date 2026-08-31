@@ -1,0 +1,44 @@
+{
+  "retry_timing": {
+    "val_auc": 0.7296,
+    "n_train_rows": 3538,
+    "oracle": {
+      "n_with_a_winning_retry": 199,
+      "model_picks_a_winning_delay": 0.452,
+      "naive_+72h_is_a_winning_delay": 0.412
+    }
+  },
+  "uplift": {
+    "arm_counts": {
+      "RETRY_ONLY": 4028,
+      "WHATSAPP_UPI_LINK": 1632,
+      "SMS_REMINDER": 110,
+      "GRACE_48H": 130,
+      "PARTIAL_CHARGE": 395,
+      "METHOD_SWITCH": 1295,
+      "NO_OP": 110
+    },
+    "arm_pos_rate": {
+      "RETRY_ONLY": 0.271,
+      "WHATSAPP_UPI_LINK": 0.309,
+      "SMS_REMINDER": 0.227,
+      "GRACE_48H": 0.123,
+      "PARTIAL_CHARGE": 0.509,
+      "METHOD_SWITCH": 0.426,
+      "NO_OP": 0.027
+    },
+    "arms_modelled": [
+      "GRACE_48H",
+      "METHOD_SWITCH",
+      "NO_OP",
+      "PARTIAL_CHARGE",
+      "RETRY_ONLY",
+      "SMS_REMINDER",
+      "WHATSAPP_UPI_LINK"
+    ],
+    "oracle": {
+      "n_with_a_winning_arm": 288,
+      "model_top_arm_is_a_winning_arm": 0.816
+    }
+  }
+}

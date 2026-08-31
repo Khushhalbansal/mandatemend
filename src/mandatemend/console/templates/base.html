@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}MandateMend{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <span class="brand">MandateMend</span>
+  <nav>
+    <a href="/">Batch</a>
+    <a href="/mandates">Mandates</a>
+    <a href="/mandates?outcome=escalated">Escalations</a>
+    <a href="/mandates?outcome=violation">Violations</a>
+  </nav>
+  {% block built %}{% endblock %}
+</header>
+<main>
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

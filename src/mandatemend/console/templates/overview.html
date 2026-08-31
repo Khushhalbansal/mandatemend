@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}MandateMend — batch{% endblock %}
+{% block built %}<span class="built">batch built {{ v.built_at.strftime('%Y-%m-%d %H:%M UTC') }}</span>{% endblock %}
+{% block body %}
+<h1>Frozen held-out batch &middot; {{ sc.batch_size }} failed mandates</h1>
+
+<div class="headline">
+  <div>
+    <div class="big">Rs {{ sc.recovered_paise | rupees }}</div>
+    <div class="sub">recovered of Rs {{ sc.amount_at_risk_paise | rupees }} at risk
+      &mdash; <b>{{ sc.recovery_rate | pct }}</b> recovery rate</div>
+  </div>
+  <div>
+    <div class="big {{ 'lift-pos' if sc.lift_vs_static >= 0 else 'lift-neg' }}">
+      {{ '+' if sc.lift_vs_static >= 0 else '' }}{{ sc.lift_vs_static | pct }}
+    </div>
+    <div class="sub">lift vs static-retry baseline</div>
+  </div>
+</div>
+
+<div class="status-strip">
+  <div class="cell"><b>{{ sc.n_recovered }}</b><span>recovered</span></div>
+  <div class="cell"><b>{{ sc.escalated }}</b><span>to human queue</span></div>
+  <div class="cell"><b>{{ sc.retries_total }}</b><span>retries used</span></div>
+  <div class="cell"><b>{{ '%.2f' | format(sc.recoveries_per_retry) }}</b><span>recoveries / retry</span></div>
+  <div class="cell">
+    <b class="{{ 'big-ok' if sc.compliance_violations == 0 else 'big-bad' }}">{{ sc.compliance_violations }}</b>
+    <span>compliance violations</span>
+  </div>
+</div>
+<p class="muted">Audit chain: {{ v.audit_msg }}. Every mandate terminates recovered or on the
+human queue &mdash; never dropped.</p>
+
+<h2>Agent vs. baselines</h2>
+<table>
+  <tr><th>strategy</th><th>recovery rate</th><th style="width:55%"></th></tr>
+  <tr><td>MandateMend agent</td><td class="num">{{ sc.recovery_rate | pct }}</td>
+    <td><div class="bar agent"><span style="width: {{ (sc.recovery_rate*100)|round(1) }}%"></span></div></td></tr>
+  <tr><td>static retry (24h / 72h / 168h)</td><td class="num">{{ sc.baseline_static | pct }}</td>
+    <td><div class="bar"><span style="width: {{ (sc.baseline_static*100)|round(1) }}%"></span></div></td></tr>
+  <tr><td>single retry</td><td class="num">{{ sc.baseline_single | pct }}</td>
+    <td><div class="bar"><span style="width: {{ (sc.baseline_single*100)|round(1) }}%"></span></div></td></tr>
+  <tr><td>email/SMS only</td><td class="num">{{ sc.baseline_email | pct }}</td>
+    <td><div class="bar"><span style="width: {{ (sc.baseline_email*100)|round(1) }}%"></span></div></td></tr>
+</table>
+<p class="muted">Static baselines are scored on the same realized outcomes and ignore the
+NPCI 24h pre-debit-notice rule; the agent honours it on every retry.</p>
+
+<h2>By failure cause</h2>
+<table>
+  <tr><th>cause</th><th class="num">n</th><th class="num">recovered</th><th class="num">rate</th>
+      <th class="num">Rs recovered</th><th class="num">Rs at risk</th><th class="num">escalated</th></tr>
+  {% for c in v.per_cause %}
+  <tr>
+    <td><a href="/mandates?cause={{ c.cause }}">{{ c.cause }}</a></td>
+    <td class="num">{{ c.n }}</td>
+    <td class="num">{{ c.recovered }}</td>
+    <td class="num">{{ c.rate | pct }}</td>
+    <td class="num">{{ c.amt_rec | rupees }}</td>
+    <td class="num">{{ c.amt_risk | rupees }}</td>
+    <td class="num">{{ c.escalated }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

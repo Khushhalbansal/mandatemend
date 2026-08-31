@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}MandateMend — mandates{% endblock %}
+{% block body %}
+<h1>Mandates <span class="muted">({{ rows | length }} shown)</span></h1>
+
+<div class="filters">
+  cause:
+  <a href="/mandates?outcome={{ outcome }}" class="{{ 'on' if not cause }}">all</a>
+  {% for c in causes %}
+  <a href="/mandates?cause={{ c }}&outcome={{ outcome }}" class="{{ 'on' if cause == c }}">{{ c }}</a>
+  {% endfor %}
+  &nbsp;|&nbsp; outcome:
+  <a href="/mandates?cause={{ cause }}" class="{{ 'on' if not outcome }}">all</a>
+  <a href="/mandates?cause={{ cause }}&outcome=recovered" class="{{ 'on' if outcome == 'recovered' }}">recovered</a>
+  <a href="/mandates?cause={{ cause }}&outcome=escalated" class="{{ 'on' if outcome == 'escalated' }}">escalated</a>
+  <a href="/mandates?cause={{ cause }}&outcome=violation" class="{{ 'on' if outcome == 'violation' }}">violation</a>
+</div>
+
+<table>
+  <tr>
+    <th>mandate</th><th>cause</th><th>method</th><th class="num">Rs at risk</th>
+    <th class="num">Rs recovered</th><th class="num">retries</th><th class="num">contacts</th>
+    <th>terminal</th><th>state</th>
+  </tr>
+  {% for r in rows %}
+  <tr>
+    <td class="mono"><a href="/mandate/{{ r.event.mandate_id }}">{{ r.event.mandate_id }}</a></td>
+    <td>{{ r.true_cause }}{% if r.true_churn %} <span class="muted">churn</span>{% endif %}</td>
+    <td>{{ r.event.method.value }}</td>
+    <td class="num">{{ r.event.amount_paise | rupees }}</td>
+    <td class="num">{{ r.resolution.recovered_amount_paise | rupees if r.resolution.recovered else '&mdash;' | safe }}</td>
+    <td class="num">{{ r.resolution.retries_used }}</td>
+    <td class="num">{{ r.resolution.contacts_made }}</td>
+    <td class="mono">{{ r.resolution.terminal_action.value }}</td>
+    <td>
+      {% if r.violations %}<span class="tag bad">violation</span>
+      {% elif r.resolution.recovered %}<span class="tag ok">recovered</span>
+      {% else %}<span class="tag esc">human queue</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

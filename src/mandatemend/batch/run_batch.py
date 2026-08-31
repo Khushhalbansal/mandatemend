@@ -1,8 +1,9 @@
 """Run the agent over the frozen held-out batch and build a Scorecard.
 
-The held-out batch + labels are read-only inputs. This module never writes to them
-(CLAUDE.md §1.3). It writes a throwaway SQLite DB under logs/ for the executor + audit
-ledger, wiped at the start of every run so a run is reproducible.
+The held-out batch + labels are read-only inputs; this module never writes to them
+(CLAUDE.md §1.3). The executor + audit ledger run against a fresh in-memory SQLite DB per
+run (no fsync -> ~9s instead of minutes); the DB-UNIQUE idempotency guarantee is identical
+in memory, and the concurrent-webhook proof lives in the integration test against a file DB.
 """
 
 from __future__ import annotations
@@ -21,8 +22,6 @@ from mandatemend.executor.gateway import SimulatedGateway
 from mandatemend.invariants import check_resolution
 from mandatemend.schemas import FailureEvent, Scorecard
 
-_RUN_DB = Path(settings.iter_log).parent / "run_batch.sqlite"
-
 
 def _load_frozen() -> tuple[list[FailureEvent], dict]:
     batch = json.loads(Path(settings.heldout_batch).read_text(encoding="utf-8"))
@@ -34,10 +33,12 @@ def _load_frozen() -> tuple[list[FailureEvent], dict]:
 def run(*, iteration: int = 0, note: str = "", git_sha: str | None = None) -> Scorecard:
     events, labels = _load_frozen()
 
-    _RUN_DB.parent.mkdir(parents=True, exist_ok=True)
-    if _RUN_DB.exists():
-        _RUN_DB.unlink()
-    init_engine(f"sqlite:///{_RUN_DB.as_posix()}", create=True)
+    # Scoring run is disposable: use an in-memory DB (no fsync). The DB-UNIQUE idempotency
+    # guarantee is identical in-memory; the *concurrent-webhook* proof lives in the
+    # integration test against a file DB.
+    init_engine("sqlite://", create=True)
+    ledger.reset_cache()  # fresh DB -> fresh chain-tip cache
+    ledger.begin_buffer()  # ~2k audit entries in one transaction instead of one round-trip each
 
     gateway = SimulatedGateway(labels)
     agent = Agent.default(gateway=gateway, audit_enabled=True)
@@ -58,11 +59,14 @@ def run(*, iteration: int = 0, note: str = "", git_sha: str | None = None) -> Sc
             escalated += 1
         violations += len(check_resolution(ev, res))
 
+    ledger.flush_buffer()
     ok_chain, chain_msg = ledger.verify_chain()
     if not ok_chain:
         violations += 1  # a broken audit chain is a compliance failure
 
-    base = {name: run_baseline(name, labels) for name in ("static_retry", "email_only", "single_retry")}
+    base = {
+        name: run_baseline(name, labels) for name in ("static_retry", "email_only", "single_retry")
+    }
     agent_rate = recovered / at_risk if at_risk else 0.0
 
     sc = Scorecard(

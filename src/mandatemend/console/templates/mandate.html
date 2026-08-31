@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ r.event.mandate_id }} — MandateMend{% endblock %}
+{% block body %}
+<h1 class="mono">{{ r.event.mandate_id }}</h1>
+
+<table>
+  <tr><th>true cause</th><td>{{ r.true_cause }}{% if r.true_churn %} (churn intent){% endif %}</td>
+      <th>diagnosed</th><td>{{ r.resolution.timeline and '' }}
+        {{ r.event.err_code }} &rarr;
+        <b>{{ (r.resolution.timeline[0].action.diagnosis.cause.value) if r.resolution.timeline else 'n/a' }}</b>
+        {% if r.resolution.timeline %}(conf
+        {{ '%.2f' | format(r.resolution.timeline[0].action.diagnosis.confidence) }}){% endif %}</td></tr>
+  <tr><th>method / issuer</th><td>{{ r.event.method.value }} / {{ r.event.issuer }}</td>
+      <th>amount at risk</th><td class="mono">Rs {{ r.event.amount_paise | rupees }}</td></tr>
+  <tr><th>mandate state</th><td>{{ r.event.mandate_state.value }}</td>
+      <th>per-txn cap</th><td class="mono">Rs {{ r.event.mandate_max_amount_paise | rupees }}</td></tr>
+  <tr><th>outcome</th>
+      <td>
+        {% if r.violations %}<span class="tag bad">violation</span>
+        {% elif r.resolution.recovered %}<span class="tag ok">recovered Rs {{ r.resolution.recovered_amount_paise | rupees }}</span>
+        {% else %}<span class="tag esc">human queue</span>{% endif %}
+      </td>
+      <th>retries / contacts</th>
+      <td class="mono">{{ r.resolution.retries_used }} / {{ r.resolution.contacts_made }}</td></tr>
+</table>
+
+{% if r.violations %}
+<p class="big-bad">Compliance violations: {{ r.violations | join('; ') }}</p>
+{% endif %}
+
+<p><a class="btn" href="/evidence/{{ r.event.mandate_id }}.json">Download evidence pack (JSON)</a></p>
+
+<h2>Recovery timeline</h2>
+{% for step in r.resolution.timeline %}
+{% set a = step.action %}
+<div class="round">
+  <div class="hd">
+    <span class="at">round {{ loop.index0 }} &middot; {{ a.action_type.value }}</span>
+    <span class="mono">exec={{ step.executed }} ok={{ step.gateway_success }}</span>
+    {% if a.scheduled_at %}<span class="muted mono">@ {{ a.scheduled_at.strftime('%m-%d %H:%M') }}</span>{% endif %}
+    <span class="muted">{{ a.reason }}</span>
+  </div>
+  <div class="trace">
+    {% for rt in a.rule_trace %}
+    <div class="r {{ 'pass' if rt.passed else 'block' }}">
+      <span class="k">[{{ 'ok' if rt.passed else 'BLOCK' }}] {{ rt.rule }}</span>{{ rt.detail }}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+<h2>Audit trail <span class="muted">(hash-chained, append-only)</span></h2>
+<pre class="audit">{% for e in audit %}{{ '%-22s' | format(e.kind) }} {{ e.entry_hash }}  {{ e.payload | tojson }}
+{% endfor %}</pre>
+{% endblock %}

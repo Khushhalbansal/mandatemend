@@ -42,7 +42,9 @@ from mandatemend.simulation import INTERVENTION_TO_ACTION, PARTIAL_RATIO, snap_d
 _NOTICE_LEAD_H = 6  # how far ahead a notification itself is scheduled (out of quiet hours)
 
 
-def _idem_key(mandate_id: str, round_no: int, action_type: ActionType, scheduled_at: datetime) -> str:
+def _idem_key(
+    mandate_id: str, round_no: int, action_type: ActionType, scheduled_at: datetime
+) -> str:
     return f"{mandate_id}|r{round_no}|{action_type.value}|{scheduled_at:%Y%m%dT%H}"
 
 
@@ -68,8 +70,12 @@ class PolicyEngine:
                 )
             ]
             return self._terminal(
-                event, diag, trace, ActionType.NO_ACTION,
-                reason="policy engine error -> fail closed, escalate to human", human=True,
+                event,
+                diag,
+                trace,
+                ActionType.NO_ACTION,
+                reason="policy engine error -> fail closed, escalate to human",
+                human=True,
             )
 
     # ------------------------------------------------------------------ core
@@ -87,16 +93,24 @@ class PolicyEngine:
         trace.append(r)
         if not r.passed:
             return self._terminal(
-                event, diag, trace, ActionType.NO_ACTION,
-                reason="diagnosis confidence below threshold -> human queue", human=True,
+                event,
+                diag,
+                trace,
+                ActionType.NO_ACTION,
+                reason="diagnosis confidence below threshold -> human queue",
+                human=True,
             )
 
         r = rule_stopping(state)
         trace.append(r)
         if not r.passed:
             return self._terminal(
-                event, diag, trace, ActionType.STOP_AND_ESCALATE,
-                reason="stopping rule: 2 consecutive hard declines", human=True,
+                event,
+                diag,
+                trace,
+                ActionType.STOP_AND_ESCALATE,
+                reason="stopping rule: 2 consecutive hard declines",
+                human=True,
             )
 
         desired = intervention_advice.intervention
@@ -109,7 +123,8 @@ class PolicyEngine:
             desired = InterventionType.WHATSAPP_UPI_LINK
             trace.append(
                 RuleEvaluation(
-                    rule="dead_mandate_substitution", passed=False,
+                    rule="dead_mandate_substitution",
+                    passed=False,
                     detail="mandate not chargeable -> WhatsApp UPI collect link instead",
                 )
             )
@@ -123,7 +138,8 @@ class PolicyEngine:
                 desired = InterventionType.WHATSAPP_UPI_LINK
                 trace.append(
                     RuleEvaluation(
-                        rule="retry_cap_substitution", passed=False,
+                        rule="retry_cap_substitution",
+                        passed=False,
                         detail="NPCI retry cap reached -> final notification only",
                     )
                 )
@@ -142,7 +158,8 @@ class PolicyEngine:
                         amount = partial
                         trace.append(
                             RuleEvaluation(
-                                rule="amount_substitution", passed=False,
+                                rule="amount_substitution",
+                                passed=False,
                                 detail=f"full amount over cap -> partial charge {amount}p",
                             )
                         )
@@ -151,12 +168,16 @@ class PolicyEngine:
                         desired = InterventionType.METHOD_SWITCH
                         trace.append(
                             RuleEvaluation(
-                                rule="amount_substitution", passed=False,
+                                rule="amount_substitution",
+                                passed=False,
                                 detail="even partial charge over cap -> offer alternate method",
                             )
                         )
 
-        # recompute scheduled time for a (possibly still) charging action
+        # Wall-clock schedule stays relative to `state.now` so the pre-debit-notice gap and
+        # quiet-hours checks operate on real timestamps. The *causal* timing the model chose
+        # travels separately on `Action.retry_delay_bucket` (hours from the original failure),
+        # which is what the gateway / oracle key on.
         if action_type in CHARGING_ACTIONS:
             delay = snap_delay(max(0.0, retry_advice.delay_hours))
             scheduled = state.now + timedelta(hours=max(delay, 1.0))
@@ -167,15 +188,22 @@ class PolicyEngine:
                 desired = InterventionType.WHATSAPP_UPI_LINK
                 trace.append(
                     RuleEvaluation(
-                        rule="predebit_notice_substitution", passed=False,
+                        rule="predebit_notice_substitution",
+                        passed=False,
                         detail="must send a 24h pre-debit notice before this retry",
                     )
                 )
             else:
                 return self._build(
-                    event, diag, trace, action_type, scheduled_at=scheduled,
-                    amount_paise=amount, round_no=state.round_no,
-                    reason=f"{diag.cause}: charge {action_type.value} at +{delay:g}h "
+                    event,
+                    diag,
+                    trace,
+                    action_type,
+                    scheduled_at=scheduled,
+                    amount_paise=amount,
+                    round_no=state.round_no,
+                    retry_delay_bucket=delay,
+                    reason=f"{diag.cause}: charge {action_type.value} at bucket +{delay:g}h "
                     f"(model p_success={retry_advice.p_success:.2f})",
                 )
 
@@ -189,13 +217,20 @@ class PolicyEngine:
             if not cf.passed:
                 if state.retries_used < 3 and state.last_notice_at is not None:
                     return self._terminal(
-                        event, diag, trace, ActionType.NO_ACTION,
+                        event,
+                        diag,
+                        trace,
+                        ActionType.NO_ACTION,
                         reason="contact cap hit; hold for the already-scheduled retry window",
                         human=False,
                     )
                 return self._terminal(
-                    event, diag, trace, ActionType.STOP_AND_ESCALATE,
-                    reason="contact frequency cap hit with no retry path left", human=True,
+                    event,
+                    diag,
+                    trace,
+                    ActionType.STOP_AND_ESCALATE,
+                    reason="contact frequency cap hit with no retry path left",
+                    human=True,
                 )
 
             if not econ.passed:
@@ -209,17 +244,26 @@ class PolicyEngine:
                     scheduled = state.now + timedelta(hours=25)
                     trace.append(
                         RuleEvaluation(
-                            rule="economics_substitution", passed=False,
+                            rule="economics_substitution",
+                            passed=False,
                             detail="paid outreach fails economic floor -> plain retry instead",
                         )
                     )
                     return self._build(
-                        event, diag, trace, ActionType.RETRY, scheduled_at=scheduled,
-                        amount_paise=event.amount_paise, round_no=state.round_no,
+                        event,
+                        diag,
+                        trace,
+                        ActionType.RETRY,
+                        scheduled_at=scheduled,
+                        amount_paise=event.amount_paise,
+                        round_no=state.round_no,
                         reason=f"{diag.cause}: outreach not economic; plain retry at +25h",
                     )
                 return self._terminal(
-                    event, diag, trace, ActionType.NO_ACTION,
+                    event,
+                    diag,
+                    trace,
+                    ActionType.NO_ACTION,
                     reason="paid outreach fails economic floor and no cheap path this round",
                     human=False,
                 )
@@ -229,8 +273,13 @@ class PolicyEngine:
             q = rule_quiet_hours(scheduled)
             trace.append(q)
             return self._build(
-                event, diag, trace, ActionType.SEND_NOTIFICATION, scheduled_at=scheduled,
-                channel=channel, round_no=state.round_no,
+                event,
+                diag,
+                trace,
+                ActionType.SEND_NOTIFICATION,
+                scheduled_at=scheduled,
+                channel=channel,
+                round_no=state.round_no,
                 reason=f"{diag.cause}: {channel} outreach / pre-debit notice "
                 f"(p_recover={intervention_advice.p_recover:.2f})",
             )
@@ -242,13 +291,21 @@ class PolicyEngine:
                     RuleEvaluation(rule="grace_once", passed=False, detail="grace already used")
                 )
                 return self._terminal(
-                    event, diag, trace, ActionType.NO_ACTION,
-                    reason="grace already extended once; hold", human=False,
+                    event,
+                    diag,
+                    trace,
+                    ActionType.NO_ACTION,
+                    reason="grace already extended once; hold",
+                    human=False,
                 )
             trace.append(RuleEvaluation(rule="grace_once", passed=True, detail="first grace use"))
             return self._build(
-                event, diag, trace, ActionType.GRACE_EXTEND,
-                scheduled_at=state.now + timedelta(hours=48), round_no=state.round_no,
+                event,
+                diag,
+                trace,
+                ActionType.GRACE_EXTEND,
+                scheduled_at=state.now + timedelta(hours=48),
+                round_no=state.round_no,
                 reason=f"{diag.cause}: 48h grace extension before next debit",
             )
 
@@ -260,7 +317,10 @@ class PolicyEngine:
             trace.append(cf)
             if not cf.passed:
                 return self._terminal(
-                    event, diag, trace, ActionType.STOP_AND_ESCALATE,
+                    event,
+                    diag,
+                    trace,
+                    ActionType.STOP_AND_ESCALATE,
                     reason="contact cap reached; cannot send another alternate-method offer",
                     human=True,
                 )
@@ -272,8 +332,13 @@ class PolicyEngine:
             scheduled = clamp_out_of_quiet(state.now + timedelta(hours=_NOTICE_LEAD_H))
             trace.append(rule_quiet_hours(scheduled))
             return self._build(
-                event, diag, trace, ActionType.OFFER_ALTERNATE_METHOD, scheduled_at=scheduled,
-                alt_method=alt, round_no=state.round_no,
+                event,
+                diag,
+                trace,
+                ActionType.OFFER_ALTERNATE_METHOD,
+                scheduled_at=scheduled,
+                alt_method=alt,
+                round_no=state.round_no,
                 reason=f"{diag.cause}: offer alternate method ({alt.value})",
             )
 
@@ -282,8 +347,12 @@ class PolicyEngine:
             RuleEvaluation(rule="no_applicable_action", passed=True, detail=f"desired={desired}")
         )
         return self._terminal(
-            event, diag, trace, ActionType.NO_ACTION,
-            reason="no applicable recovery action this round", human=False,
+            event,
+            diag,
+            trace,
+            ActionType.NO_ACTION,
+            reason="no applicable recovery action this round",
+            human=False,
         )
 
     # ------------------------------------------------------------------ builders
@@ -297,6 +366,7 @@ class PolicyEngine:
         scheduled_at: datetime,
         round_no: int,
         amount_paise: int | None = None,
+        retry_delay_bucket: float | None = None,
         channel: str | None = None,
         alt_method: PaymentMethod | None = None,
         reason: str,
@@ -307,6 +377,7 @@ class PolicyEngine:
             idempotency_key=_idem_key(event.mandate_id, round_no, action_type, scheduled_at),
             scheduled_at=scheduled_at,
             amount_paise=amount_paise,
+            retry_delay_bucket=retry_delay_bucket,
             channel=channel,
             alt_method=alt_method,
             reason=reason,

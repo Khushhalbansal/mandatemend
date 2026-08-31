@@ -177,6 +177,10 @@ class Action(BaseModel):
     idempotency_key: str = Field(min_length=8, max_length=128)
     scheduled_at: datetime
     amount_paise: int | None = Field(default=None, gt=0)  # set for RETRY / PARTIAL_CHARGE
+    # The hazard/delay bucket (hours from the original failure) the retry-timing model chose.
+    # This is the causal timing variable; `scheduled_at` is just the wall-clock the executor
+    # fires at. Set for charging actions only.
+    retry_delay_bucket: float | None = Field(default=None, ge=0.0)
     channel: str | None = None  # "whatsapp" | "sms" for SEND_NOTIFICATION
     alt_method: PaymentMethod | None = None
     reason: str = Field(min_length=1, max_length=400)

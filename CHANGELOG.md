@@ -5,6 +5,47 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-01 — iteration 4: trained advisors wired in; batch scoring 3.5min -> 9s
+* **Trained models replace heuristics in the agent.** `SurvivalRetryAdvisor` (discrete-time
+  hazard) + `TLearnerUpliftAdvisor` (IPW T-learner, CATE vs a NO_OP control) become the
+  default when artifacts exist. Round-aware: the agent walks the advisor's ranking across
+  rounds, skipping already-tried delay buckets / arms; `_prefer_retry_when_competitive`
+  routes TECH_DECLINE / BANK_DOWNTIME / SUSPECTED_CHURN to a retry before an arm (those
+  three lost to a plain retry ladder at iteration 2 because the uplift model over-favoured
+  flashy arms).
+* **Two real bugs found via the per-cause breakdown and fixed** (this is what moved lift
+  from +1.7% to +14.9%):
+  1. `SimulatedGateway` keyed retry outcomes on `scheduled_at - occurred_at` (wall-clock).
+     Because `state.now` advances across rounds, retries 2 and 3 both collapsed into delay
+     bucket 24 and re-failed. Fix: the model's chosen bucket now travels on
+     `Action.retry_delay_bucket` and the gateway keys on that; wall-clock scheduling (for
+     the pre-debit-notice gap and quiet hours) stays separate.
+  2. `rule_stopping` counted **pre-session** `history.consecutive_failures`, so a mandate
+     with 2 prior failures escalated after a single retry — the agent never spent its
+     3-retry NPCI budget. Fix: in-session declines only; threshold = `npci_max_retries`.
+* **Training data scaled** 2,000 -> 7,700 rows (held-out ids excluded); held-out draw moved
+  to a fixed high index range so `n_train` can grow without ever overlapping the frozen
+  batch. Model `max_iter` cut (uplift 200->60, retry 250->90) — smaller models generalise
+  *better* here (retry oracle-agreement 37%->45% vs naive 41%; uplift top-arm-is-a-winner
+  78%->82%) and, with per-mandate memoisation of model inference + an in-memory scoring DB,
+  a full 300-mandate scored run dropped from ~3m30s to ~9s.
+* Added: `mandatemend` CLI (`gen-data` / `train` / `score` / `demo` / `serve` /
+  `verify-audit`), the operator console (FastAPI + Jinja, dense server-rendered), the test
+  suite (53 tests: unit rules/engine/sanitize/diagnosers/schemas/ledger, integration
+  idempotency + gateway-crash, e2e frozen-batch), `data/GENERATION_NOTES.md`, this repo's
+  copy of the research doc at `docs/RESEARCH.md`.
+* **Scorecard iteration 4**: recovery 62.06%, lift +14.89% vs static-retry, compliance
+  violations 0, tests 53/53, lint 0. (Recorded `type_errors 1` was a stale mypy finding in
+  `cli.py` fixed immediately after; the append-only log keeps the honest history.)
+
+### 2026-09-01 — iterations 2–3 (exploratory, only the landing states logged)
+* iter 2: trained survival + IPW T-learner advisors first wired in, round-aware arm/delay
+  selection. recovery 48.9%, lift +1.7%. Per-cause diagnosis showed the agent *losing* to
+  static-retry on BANK_DOWNTIME (−16pp) and TECH_DECLINE (−22pp) — traced to the two bugs
+  fixed in iteration 4.
+* iter 3 attempts: a blanket "prefer retry when competitive" rule regressed lift to +0.9%
+  (reverted per §3.2); the targeted 3-cause version landed at +2.7%.
+
 ### 2026-09-01 — iteration 1: cleared the iteration-0 STOP-THE-LINE (compliance_violations 5 -> 0)
 **Root cause (one bug class).** All 5 iteration-0 violations were `CONTACT_FREQUENCY: 6 > cap 3`
 on `U67` (limit-exceeded) mandates whose amount exceeds even the partial-charge cap. Two

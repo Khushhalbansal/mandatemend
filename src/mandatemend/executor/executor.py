@@ -37,11 +37,16 @@ class Executor:
             ledger.append(
                 action.mandate_id,
                 "execution.noop",
-                {"action": action.action_type.value, "reason": action.reason,
-                 "idempotency_key": action.idempotency_key},
+                {
+                    "action": action.action_type.value,
+                    "reason": action.reason,
+                    "idempotency_key": action.idempotency_key,
+                },
             )
             return ExecutionResult(
-                action=action, executed=False, dedup_hit=False,
+                action=action,
+                executed=False,
+                dedup_hit=False,
                 detail=f"{action.action_type.value}: not a money move",
             )
 
@@ -69,12 +74,19 @@ class Executor:
             success, recovered, detail = self.gateway.attempt(action, event)
         except Exception as exc:  # noqa: BLE001 - fail closed; row stays 'reserved', not retried
             ledger.append(
-                action.mandate_id, "execution.error",
-                {"idempotency_key": action.idempotency_key, "error": f"{type(exc).__name__}: {exc}"},
+                action.mandate_id,
+                "execution.error",
+                {
+                    "idempotency_key": action.idempotency_key,
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
             )
             return ExecutionResult(
-                action=action, executed=True, gateway_success=False,
-                recovered_amount_paise=0, detail=f"gateway raised {type(exc).__name__}: {exc}",
+                action=action,
+                executed=True,
+                gateway_success=False,
+                recovered_amount_paise=0,
+                detail=f"gateway raised {type(exc).__name__}: {exc}",
             )
 
         # 4. FINALIZE
@@ -104,8 +116,12 @@ class Executor:
             },
         )
         return ExecutionResult(
-            action=action, executed=True, dedup_hit=False, gateway_success=success,
-            recovered_amount_paise=int(recovered) if success else 0, detail=detail,
+            action=action,
+            executed=True,
+            dedup_hit=False,
+            gateway_success=success,
+            recovered_amount_paise=int(recovered) if success else 0,
+            detail=detail,
         )
 
     def _dedup_result(self, action: Action) -> ExecutionResult:
@@ -118,11 +134,15 @@ class Executor:
             success = row.gateway_success
             recovered = row.recovered_amount_paise
         ledger.append(
-            action.mandate_id, "execution.dedup",
+            action.mandate_id,
+            "execution.dedup",
             {"idempotency_key": action.idempotency_key, "prior_success": success},
         )
         return ExecutionResult(
-            action=action, executed=False, dedup_hit=True, gateway_success=success,
+            action=action,
+            executed=False,
+            dedup_hit=True,
+            gateway_success=success,
             recovered_amount_paise=int(recovered or 0),
             detail="idempotency-deduplicated: this action was already executed",
         )

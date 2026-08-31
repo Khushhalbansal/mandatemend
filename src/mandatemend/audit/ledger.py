@@ -19,6 +19,41 @@ from mandatemend.db.session import session_scope
 
 GENESIS = "0" * 64
 
+# In-process cache of the chain tip. Lets a single-process run skip a SELECT per append
+# (the batch runner writes ~2k entries). `None` -> fall back to reading the DB. `verify_chain`
+# always recomputes from the DB, so a stale cache can only slow things down, never corrupt.
+_last_hash: str | None = None
+
+
+def reset_cache() -> None:
+    global _last_hash, _buffer
+    _last_hash = None
+    _buffer = None
+
+
+# Optional write buffer: when active, `append` chains entries in memory and queues them; one
+# `flush_buffer()` writes them all in a single transaction. Used by the batch runner (~2k
+# entries/run) so audit stays ON without a session round-trip per entry. Chain order and
+# hashes are identical to the unbuffered path.
+_buffer: list[AuditEntry] | None = None
+
+
+def begin_buffer() -> None:
+    global _buffer
+    _buffer = []
+
+
+def flush_buffer() -> int:
+    global _buffer
+    if not _buffer:
+        _buffer = None
+        return 0
+    n = len(_buffer)
+    with session_scope() as s:
+        s.add_all(_buffer)
+    _buffer = None
+    return n
+
 
 def _canonical(payload: dict) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
@@ -30,23 +65,31 @@ def _hash(prev_hash: str, payload_json: str) -> str:
 
 def append(mandate_id: str, kind: str, payload: dict) -> str:
     """Append one entry; return its entry_hash."""
+    global _last_hash
     payload_json = _canonical(payload)
-    with session_scope() as s:
-        last = s.execute(
-            select(AuditEntry).order_by(AuditEntry.id.desc()).limit(1)
-        ).scalar_one_or_none()
-        prev_hash = last.entry_hash if last else GENESIS
-        entry_hash = _hash(prev_hash, payload_json)
-        s.add(
-            AuditEntry(
-                ts=datetime.now(UTC),
-                mandate_id=mandate_id,
-                kind=kind,
-                payload_json=payload_json,
-                prev_hash=prev_hash,
-                entry_hash=entry_hash,
-            )
-        )
+
+    if _last_hash is None and _buffer is None:
+        with session_scope() as s:
+            last = s.execute(
+                select(AuditEntry).order_by(AuditEntry.id.desc()).limit(1)
+            ).scalar_one_or_none()
+            _last_hash = last.entry_hash if last else GENESIS
+    prev_hash = _last_hash or GENESIS
+    entry_hash = _hash(prev_hash, payload_json)
+    row = AuditEntry(
+        ts=datetime.now(UTC),
+        mandate_id=mandate_id,
+        kind=kind,
+        payload_json=payload_json,
+        prev_hash=prev_hash,
+        entry_hash=entry_hash,
+    )
+    if _buffer is not None:
+        _buffer.append(row)
+    else:
+        with session_scope() as s:
+            s.add(row)
+    _last_hash = entry_hash
     return entry_hash
 
 

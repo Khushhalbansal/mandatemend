@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from mandatemend.config import settings
 from mandatemend.db.models import Base
@@ -16,9 +17,15 @@ _Session: sessionmaker[Session] | None = None
 
 def _make_engine(url: str) -> Engine:
     connect_args: dict = {}
+    kwargs: dict = {"future": True}
     if url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
-    eng = create_engine(url, future=True, connect_args=connect_args)
+    # In-memory SQLite: one shared connection for the whole process (StaticPool) so every
+    # session sees the same DB. Used by the batch scoring run — no disk, no fsync, ~50x
+    # faster than a file DB while keeping identical SQL semantics.
+    if url in ("sqlite://", "sqlite:///:memory:"):
+        kwargs["poolclass"] = StaticPool
+    eng = create_engine(url, connect_args=connect_args, **kwargs)
     if url.startswith("sqlite"):
 
         @event.listens_for(eng, "connect")
@@ -27,6 +34,10 @@ def _make_engine(url: str) -> Engine:
             cur.execute("PRAGMA foreign_keys=ON")
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute("PRAGMA busy_timeout=5000")
+            # WAL + NORMAL: standard fast-but-safe setting for local SQLite; keeps the ~2k
+            # audit inserts per batch run quick without disabling durability outright.
+            # (The idempotency UNIQUE constraint is a schema guarantee, unaffected by this.)
+            cur.execute("PRAGMA synchronous=NORMAL")
             cur.close()
 
     return eng

@@ -26,7 +26,8 @@ def check_resolution(event: FailureEvent, res: MandateResolution) -> list[str]:
     v: list[str] = []
     charges = [r for r in res.timeline if r.action.action_type in _CHARGING and r.executed]
     notices = [
-        r for r in res.timeline
+        r
+        for r in res.timeline
         if r.action.action_type is ActionType.SEND_NOTIFICATION and r.executed
     ]
 
@@ -40,10 +41,10 @@ def check_resolution(event: FailureEvent, res: MandateResolution) -> list[str]:
     #    24h earlier.
     for c in charges:
         prior_notice = [
-            n for n in notices
-            if n.action.scheduled_at <= c.action.scheduled_at - timedelta(
-                hours=settings.predebit_notice_hours
-            )
+            n
+            for n in notices
+            if n.action.scheduled_at
+            <= c.action.scheduled_at - timedelta(hours=settings.predebit_notice_hours)
         ]
         if not prior_notice:
             v.append(
