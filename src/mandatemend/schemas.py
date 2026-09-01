@@ -10,15 +10,10 @@ Design rules (CLAUDE.md §2, §6):
 
 from __future__ import annotations
 
-import enum
 from datetime import datetime
+from enum import StrEnum  # Python 3.11+; `str(member)` returns the value
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-
-class StrEnum(str, enum.Enum):
-    def __str__(self) -> str:  # pragma: no cover - cosmetic
-        return self.value
 
 
 class PaymentMethod(StrEnum):
