@@ -106,7 +106,17 @@ def test_amount_over_cap_violation():
 
 
 def test_contact_frequency_violation():
+    # agent makes 4 outbound contacts this session; weekly budget was 3 (history starts at 0)
     ev = make_event()
-    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
-    v = check_resolution(ev, _res(notice, contacts=4))
+    contacts = [
+        _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW.replace(hour=9 + i))) for i in range(4)
+    ]
+    v = check_resolution(ev, _res(*contacts, contacts=4))
     assert any("CONTACT_FREQUENCY" in x for x in v)
+
+
+def test_contact_frequency_ok_when_mandate_arrives_over_cap():
+    # mandate already at 4 contacts this week when it arrives; agent adds none -> not a violation
+    ev = make_event(history=make_event().history.model_copy(update={"contacts_this_week": 4}))
+    v = check_resolution(ev, _res(contacts=4))
+    assert not any("CONTACT_FREQUENCY" in x for x in v)

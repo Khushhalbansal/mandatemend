@@ -12,6 +12,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from mandatemend import POLICY_VERSION
+from mandatemend.config import settings
 from mandatemend.policy.rules import (
     CHARGING_ACTIONS,
     LoopState,
@@ -234,11 +235,17 @@ class PolicyEngine:
                 )
 
             if not econ.passed:
+                # Falling back to a plain retry here must re-satisfy EVERY charging
+                # precondition — liveness, the NPCI cap, the amount cap, the 24h notice —
+                # not just the notice. (A property test caught a dead-mandate charge slipping
+                # through this path.)
                 notice_ok = (
-                    state.last_notice_at is not None
-                    and state.retries_used < 3
+                    rule_mandate_live_for_charge(event, diag).passed
+                    and rule_amount_within_cap(event.amount_paise, event).passed
+                    and state.last_notice_at is not None
+                    and state.retries_used < settings.npci_max_retries
                     and (state.now + timedelta(hours=25) - state.last_notice_at)
-                    >= timedelta(hours=24)
+                    >= timedelta(hours=settings.predebit_notice_hours)
                 )
                 if notice_ok:
                     scheduled = state.now + timedelta(hours=25)

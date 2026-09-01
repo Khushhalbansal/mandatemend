@@ -58,11 +58,18 @@ def check_resolution(event: FailureEvent, res: MandateResolution) -> list[str]:
         if h >= settings.quiet_hours_start or h < settings.quiet_hours_end:
             v.append(f"QUIET_HOURS: contact scheduled at hour {h}")
 
-    # 4. Contact frequency: executed notices must not exceed the weekly cap (plus any
-    #    contacts already made before the loop, tracked on the resolution).
-    if res.contacts_made > settings.max_contacts_per_week:
+    # 4. Contact frequency: the contacts the AGENT made this session must not exceed the
+    #    remaining weekly budget. A mandate that arrives already at/over the cap is not the
+    #    agent's doing — what matters is that it then adds nothing.
+    contact_actions = {ActionType.SEND_NOTIFICATION, ActionType.OFFER_ALTERNATE_METHOD}
+    session_contacts = sum(
+        1 for r in res.timeline if r.executed and r.action.action_type in contact_actions
+    )
+    remaining_budget = max(0, settings.max_contacts_per_week - event.history.contacts_this_week)
+    if session_contacts > remaining_budget:
         v.append(
-            f"CONTACT_FREQUENCY: {res.contacts_made} contacts > cap {settings.max_contacts_per_week}"
+            f"CONTACT_FREQUENCY: agent made {session_contacts} contacts this session, "
+            f"remaining weekly budget was {remaining_budget}"
         )
 
     # 5. No charge on a dead mandate.
