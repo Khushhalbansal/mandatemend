@@ -194,15 +194,39 @@ re-authorization (`REQUEST_REAUTH`), not a bare pre-debit notice.**
 
 ## Mutation testing
 
-The point of mutation testing here is to prove the tests *catch a broken rule*, not merely
-execute it. Two passes:
+The goal is to prove the tests *catch a broken rule*, not merely execute it. There are
+**two separate measurements** here. They answer different questions and are deliberately
+**not** collapsed into a single headline number:
 
-### 1. Targeted logic-mutation check — the one that matters
+| # | measurement | scope | score | what it tells you |
+|---|---|---|---|---|
+| **M1** | automated `mutmut` sweep | *every* mutable token in `policy/rules.py` + `policy/engine.py` + `invariants.py` (281 mutants) | **109 killed / 171 survived — ~39% raw** | broad but noisy; most survivors triaged as non-behavioural (mutated imports, docstrings, and `detail=`/`reason=` rule-trace strings that change no decision) |
+| **M2** | targeted manual check (`scripts/mutcheck.py`) | 14 hand-picked *live rule-mutations* — every comparison operator / boolean connective in the compliance predicates and the independent checker | **14 / 14 killed — 100%** | the decision-changing mutations are all caught by a unit test or a property |
 
-`python scripts/mutcheck.py` applies 14 hand-picked **semantically meaningful** mutations —
-every comparison operator and boolean connective in the compliance predicates
-(`policy/rules.py`) and in the independent checker (`invariants.py`): `<`↔`<=`, `>`↔`>=`,
-`or`↔`and`, cap-comparison flips, the NPCI off-by-one. For each: apply, run the unit
+M1 is the honest raw floor; M2 is the targeted proof on the mutations that actually matter.
+Read them as a pair.
+
+### M1 — automated `mutmut` sweep (raw: ~39%)
+
+`mutmut` (config in `setup.cfg`) over `policy/rules.py` + `policy/engine.py` +
+`invariants.py`: **281 mutants, 109 killed, 171 survived, 1 suspicious — 39% raw kill
+rate.** One-line triage of the 171 survivors: **the large majority are non-behavioural** —
+mutated import aliases, docstring text, and the `detail=` / `reason=` f-strings that only
+populate the human-readable `rule_trace` (e.g. `"confidence=%.2f vs threshold"` →
+`"XXconfidence"` changes no decision, so no test fails, correctly). Notes:
+
+- `mutmut` 3.x has no native-Windows support; 2.5.1 runs but is pinned only for this
+  analysis and is **not** a project dependency.
+- The survivor list has not been individually annotated mutant-by-mutant; the 39% is
+  reported as-is, without adjustment, as the raw automated floor.
+- The mutations that *would* change a decision are enumerated and checked directly in M2.
+
+### M2 — targeted manual check on live rule-mutations (14/14)
+
+`python scripts/mutcheck.py` applies 14 hand-picked **decision-changing** mutations — every
+comparison operator and boolean connective in the compliance predicates (`policy/rules.py`)
+and in the independent checker (`invariants.py`): `<`↔`<=`, `>`↔`>=`, `or`↔`and`,
+cap-comparison flips, the NPCI off-by-one. For each: apply, run the unit
 predicate/engine/checker tests **and** the full property suite, revert. A mutant is killed
 if either run goes red.
 
@@ -230,19 +254,5 @@ by adding `test_npci_cap_boundary_exactly_three_charges_is_ok` and
 | 13 | checker contact-freq `>` → `<` | I5 | `test_invariants::test_contact_frequency_violation` |
 | 14 | checker amount-cap `>` → `>=` | I6 | `test_invariants::test_amount_cap_boundary_charge_exactly_at_cap_is_ok` (added) |
 
-### 2. `mutmut` sweep — reported raw, for completeness
-
-`mutmut` (config in `setup.cfg`) over `policy/rules.py` + `policy/engine.py` +
-`invariants.py`: **281 mutants, 109 killed / 171 survived (~39% raw).** This number is
-**not** the safety argument and is not spun up:
-
-- `mutmut` 3.x has no native-Windows support; 2.5.1 runs but is pinned only for this
-  analysis and is **not** a project dependency.
-- The 171 survivors are dominated by **non-behavioural** mutants: mutated import aliases,
-  docstring text, and the `detail=` / `reason=` f-strings that only populate the
-  human-readable `rule_trace` (changing `"confidence=%.2f vs threshold"` to `"XXconfidence"`
-  does not change any decision, so no test fails — correctly).
-- The mutations that *would* change a decision are the ones pass 1 targets directly, and
-  those are caught.
-
-Re-run both whenever `policy/` or `invariants.py` changes materially.
+Re-run both M1 and M2 whenever `policy/` or `invariants.py` changes materially, and keep
+reporting them as two separate numbers.

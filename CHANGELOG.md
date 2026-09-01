@@ -75,15 +75,17 @@ removed. Test now runs in ~2.5 s.
 `override:` / `policy_engine` / `bypass the gate`, `<system>`-style tags). Now 30/30
 flagged, still 0 false positives on the benign-message corpus (`test_sanitize.py`).
 
-**A4. Mutation testing.** Two passes, both documented in `docs/INVARIANTS.md`:
-  * `mutmut` (config in `setup.cfg`, on-demand, *not* a project dep — 3.x has no
-    native-Windows support, 2.5.1 runs but is noisy): 281 mutants over
-    `policy/rules.py` + `policy/engine.py` + `invariants.py`, 109 killed / 171 survived
-    (~39% raw). The survivor set is dominated by **non-behavioural** mutants — mutated
-    import aliases, docstrings, and the `detail=`/`reason=` f-strings that only populate the
-    human-readable rule trace (changing "confidence=%.2f" text doesn't change a decision).
-    Reported raw and unspun; the raw number is not the safety argument.
-  * **Targeted logic-mutation check** (`python scripts/mutcheck.py`): 14 hand-picked
+**A4. Mutation testing — two separate measurements, reported as a pair (never collapsed
+into one headline).** Full detail in `docs/INVARIANTS.md`:
+  * **M1 — automated `mutmut` sweep (raw ~39%).** `mutmut` (config in `setup.cfg`,
+    on-demand, *not* a project dep — 3.x has no native-Windows support, 2.5.1 runs but is
+    noisy): 281 mutants over `policy/rules.py` + `policy/engine.py` + `invariants.py`,
+    **109 killed / 171 survived / 1 suspicious — 39% raw**. One-line triage: most survivors
+    are non-behavioural (mutated import aliases, docstrings, and the `detail=`/`reason=`
+    f-strings that only populate the human-readable rule trace). Reported as-is, no
+    adjustment, as the raw automated floor.
+  * **M2 — targeted manual check on live rule-mutations (14/14).**
+    `python scripts/mutcheck.py`: 14 hand-picked
     *semantically meaningful* mutations — every comparison operator and boolean connective
     in the compliance predicates and in the independent checker (`<`↔`<=`, `>`↔`>=`,
     `or`↔`and`, cap-comparison flips). Each applied, the unit predicate/engine/checker
