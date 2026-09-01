@@ -7,6 +7,7 @@
     mandatemend serve [--port 8000]        operator console
     mandatemend verify-audit               replay + verify the last scoring run's audit chain
     mandatemend live-check [--mandate ID]  one REAL Razorpay test-mode round-trip (needs keys)
+    mandatemend failure-drill              run the adversarial / failure-injection scenarios
 """
 
 from __future__ import annotations
@@ -184,6 +185,14 @@ def cmd_live_check(args: argparse.Namespace) -> int:
     return 0 if out["http"] == 200 else 2
 
 
+def cmd_failure_drill(_a: argparse.Namespace) -> int:
+    from mandatemend.drills import format_results, run_all
+
+    results = run_all()
+    print(format_results(results))
+    return 0 if all(r.held for r in results) else 1
+
+
 def cmd_verify_audit(_a: argparse.Namespace) -> int:
     from mandatemend.audit import ledger
     from mandatemend.batch.run_batch import run
@@ -222,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     lc.add_argument("--mandate", default=None, help="mandate_id from the frozen batch (default: first)")
     lc.set_defaults(fn=cmd_live_check)
 
+    sub.add_parser("failure-drill").set_defaults(fn=cmd_failure_drill)
     sub.add_parser("verify-audit").set_defaults(fn=cmd_verify_audit)
 
     args = p.parse_args(argv)

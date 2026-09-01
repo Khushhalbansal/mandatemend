@@ -1,104 +1,172 @@
 # MandateMend
 
+[![CI](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml/badge.svg)](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml)
+&nbsp;coverage 91% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 80 tests
+
 **A compliance-gated recovery agent for failed UPI AutoPay / e-mandate debits.**
 Razorpay AI Buildathon 2026 — Track 03 (AI Revenue Recovery), sub-angle 3A.
 
 UPI AutoPay fails at **8–15%** vs 2–3% for card mandates; ~10% of recurring payments fail on
 the first attempt and **20–40% of subscription churn is involuntary**. Every published
 retry/dunning system (Stripe Smart Retries, Recurly, Dropbox) is card-based, closed, and
-ranks actions by predicted success. MandateMend is an open, UPI-native recovery agent that
-(1) diagnoses the failure, (2) times the retry with a **discrete-time survival model**,
-(3) picks the dunning intervention by **causal uplift** against a do-nothing control,
-(4) runs every money move through a **deterministic policy engine** that enforces the NPCI
-retry cap and 24h pre-debit-notice rule, and (5) writes a **hash-chained audit ledger**.
+ranks actions by *predicted success*. MandateMend is an open, UPI-native recovery agent that
 
-## Headline result (frozen 300-mandate held-out batch)
+1. **diagnoses** the failure — LLM, sandboxed, injection-guarded, typed output only;
+2. **times** the retry with a discrete-time **survival / hazard** model, within the NPCI
+   1-original-+-3-retry budget;
+3. **chooses** the dunning intervention by **causal uplift** against a do-nothing control
+   (not by predicted success — see [`docs/MODELS.md`](docs/MODELS.md));
+4. runs every money move through a **deterministic policy engine** — the only component that
+   may emit an executable action — enforcing the NPCI retry cap, the 24h pre-debit-notice
+   rule, quiet hours, a weekly contact cap, a per-mandate economic floor, a stopping rule,
+   and fail-closed on any error;
+5. writes an **append-only, hash-chained audit ledger**, re-verified for compliance by an
+   independent checker (`invariants.py`) that lives *outside* the engine.
+
+## Headline result — frozen 300-mandate held-out batch
 
 | metric | value |
 |---|---|
-| recovery rate | **62.1%** (₹286,916 of ₹462,300 at risk) |
-| lift vs. static-retry baseline (24h/72h/168h) | **+14.9 pp** |
+| **recovery rate** | **62.06 %** (₹286,916 of ₹462,300 at risk) — 95 % CI [54.75 %, 69.22 %] |
+| **lift vs. static-retry** (24h / 72h / 168h ladder) | **+14.89 pp** — 95 % CI [7.18 pp, 23.46 pp], **entirely above zero** |
 | lift vs. single-retry / email-only | +37 pp / +42 pp |
-| NPCI compliance violations | **0** (independently checked, `invariants.py`) |
+| **NPCI compliance violations** | **0** — independently re-checked by `invariants.py` |
 | retries used / recoveries-per-retry | 230 / 0.87 |
+| harm / false-positive cost | ₹260 (paid outreach on mandates that never recovered) |
 | terminal state | every mandate ends **recovered** or **on the human queue** — never dropped |
+| one real Razorpay **test-mode** round-trip | `plink_…` created, HTTP 200, wired through the executor + audit ledger (`mandatemend live-check`) |
 
-Full history in [`logs/iterations.jsonl`](logs/iterations.jsonl); design rationale in
-[`docs/RESEARCH.md`](docs/RESEARCH.md).
+CIs are a seeded, mandate-resampled 2000× bootstrap. Full iteration history (incl. the
+STOP-THE-LINE at iter 0 and the reverted regression at iter 5) is in
+[`logs/iterations.jsonl`](logs/iterations.jsonl).
+
+Docs: **[ARCHITECTURE](docs/ARCHITECTURE.md)** · **[MODELS](docs/MODELS.md)** ·
+**[RESEARCH / track choice](docs/RESEARCH.md)** · **[data generation](data/GENERATION_NOTES.md)** ·
+**[CHANGELOG — what broke](CHANGELOG.md)**
 
 ## Architecture (trust boundary)
 
 ```
-FailureEvent ─▶ Diagnosis (LLM, sandboxed: typed output only, injection-guarded)
-                     │
-                     ├─▶ Retry-timing model  (survival / discrete-time hazard)   ─┐  advisory
-                     └─▶ Intervention model  (IPW T-learner, CATE vs NO_OP)      ─┤  only
-                                                                                  ▼
-                     POLICY ENGINE (deterministic — the ONLY thing that emits an Action)
-                       hard rules: NPCI retry cap · 24h pre-debit notice · quiet hours ·
-                       weekly contact cap · per-mandate economic floor · stopping rule ·
-                       amount-within-cap · fail-closed on any error
-                                                                                  ▼
-                     EXECUTOR (idempotent: DB-UNIQUE reserve-then-execute)
-                                                                                  ▼
-                     APPEND-ONLY, HASH-CHAINED AUDIT LEDGER  ──▶  operator console
+FailureEvent ─▶ Diagnosis (LLM, SANDBOXED: typed TypedDiagnosis only, injection-guarded)
+                     │                         offline HeuristicDiagnoser is the default
+                     ├─▶ retry-timing model   (discrete-time hazard)        ─┐  ADVICE ONLY —
+                     └─▶ intervention model   (IPW T-learner, uplift vs NO_OP)┤  the engine may
+                                                                             ▼  veto any of it
+                     POLICY ENGINE  (deterministic — the ONLY constructor of an Action)
+                       NPCI retry cap · 24h pre-debit notice · quiet hours · weekly
+                       contact cap · per-mandate economic floor · stopping rule ·
+                       amount-within-cap · fail closed → NO_ACTION + human queue
+                                                                             ▼
+                     EXECUTOR  (idempotent: DB-UNIQUE reserve → execute → finalize)
+                       SimulatedGateway (frozen outcomes)  |  RazorpayTestGateway (real)
+                                                                             ▼
+                     APPEND-ONLY, HASH-CHAINED AUDIT LEDGER
+                                                                             ▼
+                     invariants.py  (re-verifies EVERY rule, outside the engine)  +  console
 ```
 
-The LLM never has execution authority. The policy engine can veto or downgrade any model
-recommendation. Compliance is re-verified **outside** the engine by `mandatemend/invariants.py`
-so the engine can never mark its own homework.
+## Run it
 
-## Quickstart
+**One command on a fresh checkout** (Unix / macOS / Git-Bash):
 
 ```bash
-python -m venv .venv && . .venv/Scripts/activate      # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-
-python data/generator.py            # training set (the 300-mandate held-out batch is FROZEN in git)
-mandatemend train                   # train survival + uplift models -> src/mandatemend/models/artifacts/
-mandatemend score                   # run the frozen-batch scorecard + tests + lint + types
-mandatemend demo 5                  # trace one mandate end-to-end with its rule trace
-mandatemend serve                   # operator console at http://127.0.0.1:8000
-mandatemend verify-audit            # replay + verify the audit hash chain
+make demo        # venv + locked deps + generate data + train + score the frozen batch
+make serve       # operator console at http://127.0.0.1:8000
 ```
 
-Runs entirely offline against synthetic data. Set `ANTHROPIC_API_KEY` to use the LLM
-diagnoser (otherwise a real rule-based `HeuristicDiagnoser` is used); set `RAZORPAY_KEY_ID`
-/ `RAZORPAY_KEY_SECRET` + `MANDATEMEND_EXECUTOR=razorpay_test` for one real test-mode
-Payment-Link round-trip.
+**Manual / Windows:**
 
-## Data
+```bash
+python -m venv .venv
+.venv/Scripts/pip install -r requirements-lock.txt      # exact validated set
+.venv/Scripts/pip install -e . --no-deps
 
-* `data/generator.py` builds a synthetic mandate-failure world with realistic **temporal and
-  velocity structure** (bank-downtime failures cluster on 2 issuers in a shared window; churn
-  shows as rising consecutive failures), a mildly-confounded logging policy for training, and
-  a **potential-outcomes table** (realized once at generation) so every strategy — agent and
-  baselines — is scored on the *same* outcomes. See [`data/GENERATION_NOTES.md`](data/GENERATION_NOTES.md).
+.venv/Scripts/python data/generator.py     # training set (the 300-mandate held-out batch is FROZEN in git)
+mandatemend train                          # survival + uplift -> src/mandatemend/models/artifacts/  (committed)
+mandatemend score                          # frozen-batch scorecard + pytest + ruff + mypy; appends to logs/iterations.jsonl
+mandatemend demo 5                         # trace one mandate end-to-end with its full rule trace
+mandatemend serve                          # operator console
+mandatemend verify-audit                   # replay + verify the audit hash chain
+mandatemend failure-drill                  # 7 adversarial scenarios, live: inject X -> invariant held
+mandatemend live-check                     # one REAL Razorpay test-mode round-trip (needs keys in .env)
+```
+
+Runs entirely offline against synthetic data. Trained model artifacts are committed, so
+`mandatemend score` works without `train`. Set `ANTHROPIC_API_KEY` to swap the offline
+`HeuristicDiagnoser` for the LLM one; put `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` in `.env`
+(gitignored) for `live-check`.
+
+```
+$ mandatemend score
+MandateMend batch scorecard  (v0.1.0, iteration 6)
+  batch size                 300
+  amount at risk             Rs 462,300
+  recovered (agent)          Rs 286,916   62.06%   95% CI [54.75%, 69.22%]
+  baseline static-retry      47.18%
+  baseline single-retry      24.96%
+  baseline email-only        19.99%
+  LIFT vs static-retry       14.89%   95% CI [7.18%, 23.46%]
+  retries used (total)       230
+  recoveries / retry         0.8739
+  contacts on non-recovered  173   harm cost Rs 260
+  escalated to human         99
+  COMPLIANCE VIOLATIONS      0
+  per cause:
+    BANK_DOWNTIME        n=38   rec=34    89.47%  esc=4
+    INSUFFICIENT_FUNDS   n=134  rec=99    73.88%  esc=35
+    ...
+  tests 80/80   lint_errors 0   type_errors 0
+```
+
+## Data & scoring isolation (CLAUDE.md §1.3)
+
+* `data/generator.py` builds a synthetic mandate-failure world with **temporal / velocity
+  structure** (bank-downtime failures cluster on 2 issuers in a shared window; churn shows as
+  rising consecutive failures), a mildly-confounded logging policy for training, and a
+  **potential-outcomes table** realised once at generation — so the agent and every baseline
+  are scored on the *same* outcomes ([`data/GENERATION_NOTES.md`](data/GENERATION_NOTES.md)).
 * `data/heldout_batch.frozen.json` + `data/heldout_labels.frozen.json` are **read-only**
-  (SHA-256 in `data/FROZEN_SHA256.txt`). The generator refuses to overwrite them.
+  (`-text` in `.gitattributes`, SHA-256 in `data/FROZEN_SHA256.txt`; the generator refuses to
+  overwrite them and CI re-checks the hash).
+* The scored run uses an **in-memory** DB; the DB-UNIQUE idempotency guarantee is identical
+  in memory, and the concurrent-webhook / gateway-crash proofs are in
+  `tests/integration/test_executor_idempotency.py` against a file DB.
+* The real Razorpay call is **additive** — a separate module, a separate DB, never inside the
+  scored run.
 
 ## What broke / how we recovered
 
-Documented honestly as it happened in [`CHANGELOG.md`](CHANGELOG.md). Highlights: an
-iteration-0 STOP-THE-LINE (the engine rate-limited only `SEND_NOTIFICATION`, not
-`OFFER_ALTERNATE_METHOD`, so a limit-exceeded mandate looped 6 identical contacts); a
-gateway that keyed retry outcomes on wall-clock time instead of the model's causal delay
-bucket, silently collapsing every late retry into one bucket; a stopping rule that counted
-pre-session failure history and cut the retry budget to 2.
+Honest running log in [`CHANGELOG.md`](CHANGELOG.md):
+
+* **iter 0 — STOP-THE-LINE:** the engine rate-limited only `SEND_NOTIFICATION`, not
+  `OFFER_ALTERNATE_METHOD`, so a limit-exceeded mandate looped 6 identical contacts. Paused,
+  root-caused, fixed the contact-cap definition + added a stall-breaker.
+* **the gateway keyed retry outcomes on wall-clock time**, not the model's causal delay
+  bucket — `state.now` advances across rounds, so retries 2 and 3 silently collapsed into one
+  bucket and re-failed. Fix: the chosen bucket travels on `Action.retry_delay_bucket`.
+* **the stopping rule counted pre-session failure history**, so a mandate with 2 prior
+  failures escalated after a single retry and never spent its NPCI budget. Fix: in-session
+  declines only.
+* **iter 5 regression, reverted per §3.2:** letting the mandate's standing notice cover
+  retries within 72h *removed* the spacing the notice delay was implicitly enforcing —
+  recovery fell to 59.5 %. Reverted; iter 4 stands.
 
 ## Layout
 
 ```
 src/mandatemend/
-  schemas.py        typed contract (money in integer paise)
-  diagnosis/        sanitize · heuristic_diagnoser · llm_diagnoser
-  models/           retry_timing (survival) · uplift (T-learner) · advisors · train
-  policy/           rules (unit-tested predicates) · engine (sole Action authority)
-  executor/         gateway (Simulated / RazorpayTest) · executor (idempotent)
-  audit/ledger.py   append-only hash chain
-  invariants.py     independent compliance re-verification
-  agent.py          the bounded per-mandate recovery loop
-  batch/            baselines · run_batch (scorecard)
-  console/          FastAPI + Jinja operator console
-data/ · tests/ (unit · integration · e2e) · logs/iterations.jsonl
+  schemas.py         typed contract (money = integer paise; Action can't exist without a rule_trace)
+  diagnosis/         sanitize · heuristic_diagnoser · llm_diagnoser
+  models/            retry_timing (hazard) · uplift (T-learner) · advisors (round-aware) · train
+  policy/            rules (individually unit-tested predicates) · engine (sole Action authority)
+  executor/          gateway (Simulated | RazorpayTest) · executor (idempotent, DB-UNIQUE)
+  audit/ledger.py    append-only hash chain
+  invariants.py      independent compliance re-verification
+  agent.py           the bounded per-mandate recovery loop (warm() batches model inference)
+  batch/             baselines · run_batch (scorecard + bootstrap CIs)
+  live.py            one real Razorpay test-mode round-trip
+  console/           FastAPI + Jinja operator console (dense, server-rendered, no build step)
+data/ · tests/ (unit · integration · e2e · live) · logs/iterations.jsonl · .github/workflows/ci.yml
 ```
+
+MIT licensed.

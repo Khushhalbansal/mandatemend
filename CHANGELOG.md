@@ -5,6 +5,50 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-01 — `failure-drill` command + a real concurrency bug it caught
+* **`mandatemend failure-drill`** (`drills.py`): runs 7 adversarial scenarios live and prints
+  "inject X → the system did Y → invariant held" — concurrent-webhook (exactly-once via
+  DB-UNIQUE), duplicate-retry, gateway-crash-mid-flight, NPCI-cap-attempt,
+  dead-mandate-charge-attempt, prompt-injection (obeyed by a stub LLM, still refused),
+  audit-tamper. Each is also a test (`tests/integration/test_drills.py`). 7/7 hold.
+* **Bug the drill surfaced — `audit/ledger.append` was not concurrency-safe.** The executor's
+  dedup path fires `append` from several webhook threads at once; two threads read the same
+  cached chain tip → two entries with the same `entry_hash` → `UNIQUE constraint failed:
+  audit_entry.entry_hash`. Fix: `append` / `begin_buffer` / `flush_buffer` / `reset_cache`
+  now hold a module `RLock` (single-process system, so a lock is sufficient and cheap). New
+  `tests/integration/test_audit_concurrency.py`: 64 concurrent identical-payload appends →
+  64 distinct hashes, one valid chain. The existing idempotency test had been getting lucky
+  on timing.
+* The concurrent-webhook drill runs against a **file** DB (its own connection per thread),
+  not the in-memory StaticPool — the in-memory shared-connection setup can't exercise
+  cross-connection UNIQUE enforcement, which is the whole point of that scenario.
+
+### 2026-09-01 — dev-check hardening: CI, coverage 66→91%, statistical rigor, docs
+* **CI** (`.github/workflows/ci.yml`): py 3.11/3.12/3.13 matrix — ruff, mypy, pytest with
+  `--cov-fail-under=85`, then `mandatemend train && mandatemend score` as a hard
+  STOP-THE-LINE gate (`score` exits non-zero on `compliance_violations > 0`), then a
+  frozen-batch SHA-256 check. `requirements-lock.txt` = the exact validated dependency set
+  CI installs; `pyproject` deps relaxed to compatible floors. `Makefile` (`make demo` =
+  fresh-checkout smoke test). MIT `LICENSE`.
+* **Tests 53 → 80, coverage 66% → 91%.** New: `test_console.py` (every route via FastAPI
+  TestClient), `test_cli.py` (score / demo / verify-audit / train), `test_models.py`
+  (survival + uplift train / curve / rank / save-load), `test_invariants.py` (every
+  violation branch), `test_live_offline.py` (`run_live_check` with the HTTP call faked).
+* **Statistical rigor on the scorecard** (reporting only — the agent's 62.06% / +14.89pp is
+  unchanged): seeded, vectorised 2000× mandate-resampled bootstrap → `recovery_rate_ci`
+  [54.75%, 69.22%] and `baseline_lift_ci` [7.18%, 23.46%] (entirely above zero). Explicit
+  `harm_cost_paise` (paid outreach on never-recovered mandates, ₹260). `per_cause[]` on the
+  Scorecard + in `mandatemend score` + the console overview.
+* **Perf: `Agent.warm(events)`** batch-precomputes model inference (one `predict_proba` per
+  arm over an (N, F) matrix instead of N·|arms| single-row calls) — a scored run went from
+  ~50s back to ~9s; the full suite runs in ~2min.
+* **Fixes surfaced by the new tests:** `db/session.init_engine` now disposes the previous
+  engine (sqlite connection leak → ResourceWarnings); console moved to FastAPI `lifespan` +
+  `TemplateResponse(request, …)` (suite passes `-W error::DeprecationWarning`).
+* **Docs:** `docs/ARCHITECTURE.md` (trust boundary + bar→code mapping), `docs/MODELS.md`
+  (survival + T-learner design, IPW, oracle-agreement numbers, limitations), README
+  overhaul with CI badge + working repro + CLI transcript.
+
 ### 2026-09-01 — step 1: real Razorpay test-mode round-trip (additive, isolated from scoring)
 * `RazorpayTestGateway` hardened: sanitised `reference_id` (alnum + time suffix, `<= 40`,
   no `|`), `httpx.HTTPError` caught -> fail closed, and it now records `last_response`
