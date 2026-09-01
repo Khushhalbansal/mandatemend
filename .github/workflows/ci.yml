@@ -48,13 +48,28 @@ jobs:
         run: mypy
 
       - name: Tests — unit
-        run: pytest -q -rA tests/unit
+        run: |
+          set -o pipefail
+          pytest -q -rA -p no:cacheprovider --tb=short tests/unit 2>&1 | tee /tmp/unit.log || {
+            { echo '### unit test failure'; echo '```'; tail -120 /tmp/unit.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
 
       - name: Tests — integration
-        run: pytest -q -rA tests/integration
+        run: |
+          set -o pipefail
+          pytest -q -rA -p no:cacheprovider --tb=short tests/integration 2>&1 | tee /tmp/int.log || {
+            { echo '### integration test failure'; echo '```'; tail -120 /tmp/int.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
 
       - name: Tests — e2e + coverage gate
-        run: pytest -q -rA --cov=mandatemend --cov-report=term-missing --cov-fail-under=85
+        run: |
+          set -o pipefail
+          pytest -q -rA -p no:cacheprovider --tb=short --cov=mandatemend --cov-report=term-missing --cov-fail-under=85 2>&1 | tee /tmp/e2e.log || {
+            { echo '### e2e/coverage failure'; echo '```'; tail -120 /tmp/e2e.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
 
       - name: Full pipeline — train then score the frozen batch
         # `mandatemend score` exits non-zero if compliance_violations > 0, so this step is a
