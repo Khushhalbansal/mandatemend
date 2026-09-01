@@ -39,8 +39,14 @@ jobs:
       - name: Types (mypy)
         run: mypy
 
-      - name: Tests (unit + integration + e2e; live tests excluded by pyproject addopts)
-        run: pytest -q --cov=mandatemend --cov-report=term-missing --cov-fail-under=85
+      - name: Tests — unit
+        run: pytest -q -rA tests/unit
+
+      - name: Tests — integration
+        run: pytest -q -rA tests/integration
+
+      - name: Tests — e2e + coverage gate
+        run: pytest -q -rA --cov=mandatemend --cov-report=term-missing --cov-fail-under=85
 
       - name: Full pipeline — train then score the frozen batch
         # `mandatemend score` exits non-zero if compliance_violations > 0, so this step is a
