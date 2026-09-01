@@ -35,3 +35,4 @@ node_modules/
 logs/live_audit.sqlite
 logs/last_live_roundtrip.json
 logs/_*
+logs/run_batch.sqlite
