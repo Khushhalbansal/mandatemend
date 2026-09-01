@@ -5,6 +5,41 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-01 — iteration 9b (work-stream B3+B4+B5): `mandatemend eval`
+
+New `src/mandatemend/eval.py` + `mandatemend eval [--sequencing|--calibration|--ablation]`
+→ `logs/eval.json`. All three are reporting-only (read the frozen potential-outcomes table
+as an oracle, same as the `train` oracle checks — never trained on).
+
+* **B3 sequencing.** Model's hazard-ranked top-3 retry schedule captures a realised win on
+  **0.794** of the 199 mandates that have a winning bucket, vs **0.774** for the fixed
+  24/72/168 ladder — **+2.0 pp** from adaptive ordering. Modest; the retry model's value is
+  mostly bucket *selection*, not order. `expected_recovery_for_schedule` (from 9a) predicts
+  0.716 vs 0.794 observed for its own top-3.
+* **B4 calibration / ECE.** retry-timing ECE **0.063** (per bucket, n=2100), uplift ECE
+  **0.046** (per arm vs one canonical realised execution — an earlier version compared
+  against "any arm variant ever wins" and got a misleading 0.287). Both reasonably
+  calibrated; full reliability tables in `logs/eval.json`.
+* **B5 ablation — and an uncomfortable finding.** Swapping each advisor pair into the
+  otherwise-fixed agent, on the frozen 300-batch:
+
+  | config | recovery | lift |
+  |---|---|---|
+  | naive static-retry | 47.18% | +0.00 |
+  | heuristic + heuristic | 56.21% | +9.04 |
+  | **survival + heuristic** | **65.23%** | **+18.05** |
+  | heuristic + T-learner | 51.73% | +4.55 |
+  | survival + T-learner *(shipped)* | 61.42% | +14.24 |
+
+  The shipped config is **not** the best of five: `survival retry + heuristic uplift` scores
+  **+3.8 pp higher**, and the trained T-learner *lowers* recovery in both pairings it's in.
+  On this 300-mandate batch the T-learner is net-negative vs the domain-rule intervention
+  advisor. Flagged, not hidden: documented in `docs/MODELS.md §4c`, and queued for
+  iteration 11's 1000-mandate v2 batch — if `survival + heuristic` still leads there, the
+  shipped default changes (T-learner kept as an option / an honest negative result). Not
+  switched off one thin batch. The shipped ablation row reproduces the real 61.42 % headline
+  exactly, which validates the harness.
+
 ### 2026-09-01 — iteration 9a (work-stream B2): retry-timing as a proper discrete-time hazard
 
 **Scope decision.** Work-stream B1 (issuer × day-of-month empirical-Bayes prior) was

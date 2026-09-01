@@ -9,6 +9,7 @@
     mandatemend live-check [--mandate ID]  one REAL Razorpay test-mode round-trip (needs keys)
     mandatemend failure-drill              run the adversarial / failure-injection scenarios
     mandatemend redteam                    the wider adversarial battery (injection corpus, fuzzing, ...)
+    mandatemend eval                       model-strength diagnostics: sequencing, calibration, ablation
 """
 
 from __future__ import annotations
@@ -202,6 +203,28 @@ def cmd_redteam(_a: argparse.Namespace) -> int:
     return 0 if all(r.held for r in results) else 1
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    from mandatemend import eval as ev
+
+    picked = args.sequencing or args.calibration or args.ablation
+    out = ev.run_all(
+        do_sequencing=args.sequencing or not picked,
+        do_calibration=args.calibration or not picked,
+        do_ablation=args.ablation or not picked,
+    )
+    print(ev.format_report(out))
+    ev.EVAL_JSON.parent.mkdir(parents=True, exist_ok=True)
+    ev.EVAL_JSON.write_text(_json_dumps(out), encoding="utf-8")
+    print(f"  -> wrote {ev.EVAL_JSON}")
+    return 0
+
+
+def _json_dumps(obj: object) -> str:
+    import json
+
+    return json.dumps(obj, indent=2)
+
+
 def cmd_verify_audit(_a: argparse.Namespace) -> int:
     from mandatemend.audit import ledger
     from mandatemend.batch.run_batch import run
@@ -243,6 +266,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("failure-drill").set_defaults(fn=cmd_failure_drill)
     sub.add_parser("redteam").set_defaults(fn=cmd_redteam)
     sub.add_parser("verify-audit").set_defaults(fn=cmd_verify_audit)
+
+    ev = sub.add_parser("eval", help="model-strength diagnostics")
+    ev.add_argument("--sequencing", action="store_true", help="only the sequencing metric")
+    ev.add_argument("--calibration", action="store_true", help="only the calibration / ECE report")
+    ev.add_argument("--ablation", action="store_true", help="only the ablation table")
+    ev.set_defaults(fn=cmd_eval)
 
     args = p.parse_args(argv)
     return int(args.fn(args) or 0)

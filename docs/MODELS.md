@@ -120,7 +120,68 @@ calls over an `(N, F)` matrix instead of `N × |arms|` single-row calls — cutt
 300-mandate scored run from ~50s to ~9s. `run_batch` and the console call it; `demo` /
 `live-check` fall back to per-call memoised inference.
 
-## 4. Known limitations
+## 4. Model-strength evaluation — `mandatemend eval`  (iteration 9b)
+
+Three reporting-only diagnostics on the frozen 300-batch (read-only oracle use, same as the
+`train` oracle checks — never trained on). Written to `logs/eval.json`.
+
+### 4a. Sequencing (B3) — does *ordering* the 3 retries beat the fixed ladder?
+
+For every mandate with at least one realised winning RETRY bucket (n = 199): does the retry
+model's hazard-ranked **top-3 schedule** capture a win, vs the classic fixed **24 / 72 /
+168 h** ladder?
+
+| schedule | captures a win |
+|---|---|
+| model top-3, ordered by hazard | **0.794** |
+| fixed 24/72/168 ladder | 0.774 |
+| model single best pick only | 0.437 |
+
+**+2.0 pp** from adaptive sequencing over the fixed ladder — real but modest; most of the
+retry model's value is picking *which* buckets, not the order. Schedule-probability
+calibration: the model predicts 0.716 recovery for its own top-3 vs 0.794 observed (slight
+under-confidence).
+
+### 4b. Calibration / ECE (B4)
+
+Predicted probability vs realised frequency on the frozen batch, 10 equal-width bins.
+Uplift is compared arm-by-arm against a **single canonical realised execution** per arm (not
+"any variant ever wins", which would inflate the observed frequency).
+
+| model | ECE | MCE | n |
+|---|---|---|---|
+| retry-timing (per bucket) | **0.063** | 0.204 | 2100 |
+| uplift (per arm) | **0.046** | 0.336 | 2100 |
+
+Both are reasonably calibrated; MCE is driven by the sparse high-probability tail bins
+(n ≈ 2–25). Full reliability tables in `logs/eval.json`.
+
+### 4c. Ablation (B5) — where does the +14 pp come from?
+
+Recovery rate on the frozen 300-batch with each advisor pair swapped in (all other
+orchestration held fixed):
+
+| config | recovery | lift vs static-retry |
+|---|---:|---:|
+| naive static-retry ladder (no agent) | 47.18 % | +0.00 |
+| heuristic retry + heuristic uplift | 56.21 % | +9.04 |
+| **survival retry + heuristic uplift** | **65.23 %** | **+18.05** |
+| heuristic retry + T-learner uplift | 51.73 % | +4.55 |
+| survival retry + T-learner uplift *(shipped)* | 61.42 % | +14.24 |
+
+**Honest, uncomfortable finding.** The shipped config is *not* the best of the five on this
+batch: **`survival retry + heuristic uplift` scores +3.8 pp higher (65.23 % vs 61.42 %)**,
+and the T-learner uplift model *lowers* recovery in both pairings it appears in
+(56.21 → 51.73 with heuristic retry; 65.23 → 61.42 with survival retry). On this 300-mandate
+batch the trained uplift model is net-negative versus the domain-rule intervention advisor.
+It is not obviously a bug — the retry-first override and round-aware walk interact with arm
+ranking — but it means the "rank by causal uplift, not predicted success" pitch is currently
+carried by the *architecture*, not by this particular trained T-learner beating the
+heuristic. This is flagged for iteration 11's 1000-mandate v2 batch: if `survival +
+heuristic` still leads there, the shipped default should change (and the T-learner kept as an
+option / an honest negative result). Not silently switched off one thin batch.
+
+## 5. Known limitations
 
 - Synthetic training data cannot perfectly preserve real behavioural patterns (arXiv
   2604.13125). Mitigated with explicit temporal/velocity structure + a latent churn process,
