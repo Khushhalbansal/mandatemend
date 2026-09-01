@@ -366,14 +366,23 @@ def _logging_action(draw: MandateDraw, rng: np.random.Generator) -> tuple[str, f
     return outcome_key(ActionType.RETRY, 24.0), (1 - explore) * 0.6
 
 
-# Held-out mandates are always drawn from this fixed, high index range so the training set
-# can be scaled to any size without ever overlapping the frozen batch (train = indices
-# [0, n_train), held-out = [_HELDOUT_OFFSET, _HELDOUT_OFFSET + n_heldout)).
+# Held-out mandates are always drawn from a fixed, high index range so the training set can
+# be scaled to any size without ever overlapping a frozen batch. Ranges are mutually
+# disjoint by construction:
+#   train           = [0, n_train)              (n_train <= a few tens of thousands)
+#   primary held-out = [_HELDOUT_OFFSET, _HELDOUT_OFFSET + n_heldout)      (300)
+#   v2 held-out      = [_HELDOUT_V2_OFFSET, _HELDOUT_V2_OFFSET + n_v2)     (1000, supplementary)
 _HELDOUT_OFFSET = 1_000_000
+_HELDOUT_V2_OFFSET = 1_100_000
 
 
 def build(
-    seed: int, n_train: int, n_heldout: int, *, exclude_ids: set[str] | None = None
+    seed: int,
+    n_train: int,
+    n_heldout: int,
+    *,
+    exclude_ids: set[str] | None = None,
+    heldout_offset: int = _HELDOUT_OFFSET,
 ) -> tuple[list, list, dict, dict]:
     rng = np.random.default_rng(seed)
     down_issuers = list(rng.choice(ISSUERS, size=2, replace=False))
@@ -383,7 +392,7 @@ def build(
     train_draws = [MandateDraw(i, seed, down_issuers, down_start) for i in range(n_train)]
     heldout_draws = [
         MandateDraw(i, seed, down_issuers, down_start)
-        for i in range(_HELDOUT_OFFSET, _HELDOUT_OFFSET + n_heldout)
+        for i in range(heldout_offset, heldout_offset + n_heldout)
     ]
 
     train_rows: list[dict] = []
@@ -436,8 +445,45 @@ def build(
 def _write_json(path: Path, obj) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(obj, indent=2, sort_keys=True)
-    path.write_text(payload, encoding="utf-8")
-    return sha256(payload.encode()).hexdigest()
+    # write_bytes (not write_text): no platform newline translation, so the file on disk is
+    # byte-identical to `payload` on every OS and the recorded SHA-256 always matches
+    # (the frozen batches are `-text` in .gitattributes and CI hashes them).
+    data = payload.encode("utf-8")
+    path.write_bytes(data)
+    return sha256(data).hexdigest()
+
+
+def _freeze_v2(seed: int, n_v2: int) -> None:
+    """Write the supplementary 1 000-mandate v2 held-out batch. Same generator, same seed,
+    a disjoint index range. The primary frozen batch + the training set are untouched."""
+    b_path = DATA_DIR / "heldout_batch_v2.frozen.json"
+    l_path = DATA_DIR / "heldout_labels_v2.frozen.json"
+    for p in (b_path, l_path):
+        if p.exists():
+            raise SystemExit(
+                f"REFUSING to overwrite {p.name}: the v2 held-out batch is frozen and read-only "
+                f"(CLAUDE.md §1.3/§3.1). Delete it by hand only if you truly intend to re-baseline "
+                f"every v2 scorecard."
+            )
+    # n_train=0: we only want the held-out draws from the v2 offset.
+    _tr, events, labels, meta = build(
+        seed, n_train=0, n_heldout=n_v2, heldout_offset=_HELDOUT_V2_OFFSET
+    )
+    meta["batch"] = "v2-supplementary"
+    meta["heldout_offset"] = _HELDOUT_V2_OFFSET
+    meta["n_heldout"] = n_v2
+    sha_b = _write_json(b_path, {"meta": meta, "events": events})
+    sha_l = _write_json(l_path, {"meta": meta, "labels": labels})
+    for p in (b_path, l_path):
+        os.chmod(p, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
+    print(f"heldout_batch_v2.frozen.json   events={len(events)}  sha256={sha_b}")
+    print(f"heldout_labels_v2.frozen.json  labels={len(labels)}  sha256={sha_l}")
+    sha_file = DATA_DIR / "FROZEN_SHA256.txt"
+    existing = sha_file.read_text(encoding="utf-8") if sha_file.exists() else ""
+    lines = [ln for ln in existing.splitlines() if ln and "heldout_batch_v2" not in ln
+             and "heldout_labels_v2" not in ln]
+    lines += [f"heldout_batch_v2.frozen.json  {sha_b}", f"heldout_labels_v2.frozen.json {sha_l}"]
+    sha_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> None:
@@ -451,7 +497,19 @@ def main() -> None:
         help="also (re)write the FROZEN held-out batch+labels. Refuses if they already exist "
         "(CLAUDE.md §3.1 hard stop).",
     )
+    ap.add_argument("--n-v2", type=int, default=1000, help="size of the supplementary v2 batch")
+    ap.add_argument(
+        "--freeze-v2",
+        action="store_true",
+        help="write ONLY the supplementary FROZEN v2 held-out batch "
+        "(data/heldout_batch_v2.frozen.json, index range [1_100_000, ...)). Does not touch the "
+        "training set or the primary frozen batch. Refuses to overwrite (CLAUDE.md §3.1).",
+    )
     args = ap.parse_args()
+
+    if args.freeze_v2:
+        _freeze_v2(args.seed, args.n_v2)
+        return
 
     batch_path = DATA_DIR / "heldout_batch.frozen.json"
     labels_path = DATA_DIR / "heldout_labels.frozen.json"

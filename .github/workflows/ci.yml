@@ -71,7 +71,7 @@ jobs:
           mandatemend train
           mandatemend score --fast --no-log --note "CI ${{ matrix.python-version }}"
 
-      - name: Verify frozen batch is untouched
+      - name: Verify frozen batches are untouched (primary + v2)
         run: |
           python - <<'PY'
           import hashlib, pathlib, sys
@@ -81,11 +81,14 @@ jobs:
               if line.strip()
           )
           bad = []
-          for name in ("heldout_batch.frozen.json", "heldout_labels.frozen.json"):
+          for name in (
+              "heldout_batch.frozen.json", "heldout_labels.frozen.json",
+              "heldout_batch_v2.frozen.json", "heldout_labels_v2.frozen.json",
+          ):
               got = hashlib.sha256(pathlib.Path("data", name).read_bytes()).hexdigest()
               if got != rec[name]:
                   bad.append(f"{name}: {got} != {rec[name]}")
           if bad:
               sys.exit("FROZEN BATCH CHANGED:\n" + "\n".join(bad))
-          print("frozen batch intact")
+          print("frozen batches intact (primary + v2)")
           PY

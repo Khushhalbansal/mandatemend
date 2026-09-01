@@ -31,6 +31,10 @@ class Settings(BaseSettings):
 
     heldout_batch: Path = REPO_ROOT / "data" / "heldout_batch.frozen.json"
     heldout_labels: Path = REPO_ROOT / "data" / "heldout_labels.frozen.json"
+    # Supplementary 1 000-mandate cross-check batch (disjoint index range). The primary
+    # 300-batch above stays THE headline metric; v2 is a robustness check.
+    heldout_batch_v2: Path = REPO_ROOT / "data" / "heldout_batch_v2.frozen.json"
+    heldout_labels_v2: Path = REPO_ROOT / "data" / "heldout_labels_v2.frozen.json"
     iter_log: Path = REPO_ROOT / "logs" / "iterations.jsonl"
 
     # --- Policy constants (NPCI + operational). Enforced in the policy engine only. ---
