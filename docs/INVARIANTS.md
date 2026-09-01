@@ -64,30 +64,35 @@ REVOKED}` or the diagnosis cause ∈ {MANDATE_PAUSED, MANDATE_EXPIRED}.**
 
 ## I4 — No outbound contact in quiet hours
 
-**No executed `SEND_NOTIFICATION` / `OFFER_ALTERNATE_METHOD` is scheduled in
-`[settings.quiet_hours_start, settings.quiet_hours_end)` = [21:00, 08:00) IST.**
+**No executed `SEND_NOTIFICATION` / `OFFER_ALTERNATE_METHOD` / `REQUEST_REAUTH` is scheduled
+in `[settings.quiet_hours_start, settings.quiet_hours_end)` = [21:00, 08:00) IST.**
 
-- **Enforced by** `clamp_out_of_quiet(scheduled_at)` (`rules.py:157`), applied to every
+- **Enforced by** `clamp_out_of_quiet(scheduled_at)` (`rules.py`), applied to every
   outbound-contact schedule before it is built; `rule_quiet_hours` records the check in the
   rule trace.
-- **Re-verified by** checker rule 3 (`invariants.py:56`): flags `QUIET_HOURS` for any
-  contact whose scheduled hour is `>= 21` or `< 8`.
+- **Re-verified by** checker rule 3 (`invariants.py`): flags `QUIET_HOURS` for any of the
+  three outbound-contact action types scheduled at an hour `>= 21` or `< 8`.
 - **Proven by** `test_invariants.py::test_quiet_hours_violation`, property tests.
 
 ## I5 — Weekly contact cap
 
 **The agent makes at most `settings.max_contacts_per_week` (= 3) outbound contacts, and
 never more than the mandate's *remaining* weekly budget on arrival.**
-Contact actions = `SEND_NOTIFICATION` + `OFFER_ALTERNATE_METHOD` (+ `REQUEST_REAUTH` once
-I13 lands).
+Contact actions = `SEND_NOTIFICATION` + `OFFER_ALTERNATE_METHOD` + `REQUEST_REAUTH`
+(`policy.rules.CONTACT_ACTIONS`). `REQUEST_REAUTH` — a mandate re-authorization request link
+(iteration 12a) — is an outbound contact: it counts here and against quiet hours (I4), but
+is **not** a charge, so it never touches the NPCI retry budget (I1) and needs no pre-debit
+notice (I2).
 
-- **Enforced by** `rule_contact_frequency(state)` (`engine.py:213`, `:324`): checks
-  `state.contacts_this_week < 3` before any contact action; on failure, holds for an
-  already-scheduled retry window or escalates to a human.
-- **Re-verified by** checker rule 4 (`invariants.py:63`): `session_contacts >
-  max(0, 3 - event.history.contacts_this_week)` → `CONTACT_FREQUENCY`. A mandate that
-  arrives already at/over the cap is not the agent's fault — what is checked is that the
-  agent then adds nothing.
+- **Enforced by** `rule_contact_frequency(state)` (`engine.py`, notification /
+  alternate-method / re-auth branches): checks `state.contacts_this_week < 3` before any
+  contact action; on failure, holds for an already-scheduled retry window or escalates to a
+  human.
+- **Re-verified by** checker rule 4 (`invariants.py`): `session_contacts >
+  max(0, 3 - event.history.contacts_this_week)` → `CONTACT_FREQUENCY`, where
+  `session_contacts` counts every executed `SEND_NOTIFICATION` / `OFFER_ALTERNATE_METHOD` /
+  `REQUEST_REAUTH`. A mandate that arrives already at/over the cap is not the agent's fault
+  — what is checked is that the agent then adds nothing.
 - **Proven by** `test_invariants.py::test_contact_frequency_violation`,
   `::test_contact_frequency_ok_when_mandate_arrives_over_cap`, property tests.
 

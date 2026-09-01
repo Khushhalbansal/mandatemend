@@ -25,12 +25,21 @@ CHARGING_ACTIONS = frozenset({ActionType.RETRY, ActionType.PARTIAL_CHARGE})
 # Every action that puts an outbound message in front of the customer counts against the
 # weekly contact cap and the quiet-hours rule — not just SEND_NOTIFICATION. `invariants.py`
 # counts them the same way, so the engine must too (this mismatch caused the iteration-0
-# CONTACT_FREQUENCY violations).
-CONTACT_ACTIONS = frozenset({ActionType.SEND_NOTIFICATION, ActionType.OFFER_ALTERNATE_METHOD})
+# CONTACT_FREQUENCY violations). REQUEST_REAUTH is an outbound contact (a re-authorization
+# request link), so it is in here — but it is NOT a charge, so it never touches the NPCI
+# retry budget.
+CONTACT_ACTIONS = frozenset(
+    {
+        ActionType.SEND_NOTIFICATION,
+        ActionType.OFFER_ALTERNATE_METHOD,
+        ActionType.REQUEST_REAUTH,
+    }
+)
 NON_CHARGING_LOOP_ACTIONS = frozenset(
     {
         ActionType.SEND_NOTIFICATION,
         ActionType.OFFER_ALTERNATE_METHOD,
+        ActionType.REQUEST_REAUTH,
         ActionType.GRACE_EXTEND,
         ActionType.NO_ACTION,
     }

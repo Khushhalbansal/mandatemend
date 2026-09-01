@@ -96,6 +96,27 @@ def test_amount_cap_boundary_charge_exactly_at_cap_is_ok():
     assert not any("AMOUNT_OVER_CAP" in x for x in v), v
 
 
+def test_reauth_request_counts_as_a_contact_never_as_a_charge():
+    ev = make_event()
+    # 3 re-auth requests this session, weekly budget 3, none succeed -> compliant (it's a
+    # contact, not a charge: no NPCI_RETRY_CAP, no PREDEBIT_NOTICE)
+    reauths = [_ok(_act(ActionType.REQUEST_REAUTH, at=NOW.replace(hour=9 + i))) for i in range(3)]
+    v = check_resolution(ev, _res(*reauths, contacts=3))
+    assert v == [], v
+    # a 4th pushes it over the contact cap
+    reauths.append(_ok(_act(ActionType.REQUEST_REAUTH, at=NOW.replace(hour=13))))
+    v2 = check_resolution(ev, _res(*reauths, contacts=4))
+    assert any("CONTACT_FREQUENCY" in x for x in v2)
+    assert not any("NPCI_RETRY_CAP" in x for x in v2)
+
+
+def test_reauth_request_in_quiet_hours_is_a_violation():
+    ev = make_event()
+    late = _ok(_act(ActionType.REQUEST_REAUTH, at=NOW.replace(hour=23)))
+    v = check_resolution(ev, _res(late, contacts=1))
+    assert any("QUIET_HOURS" in x and "REQUEST_REAUTH" in x for x in v)
+
+
 def test_predebit_notice_violation():
     ev = make_event()
     retry = _ok(_act(ActionType.RETRY, at=NOW, amount=ev.amount_paise))  # no notice at all

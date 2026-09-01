@@ -349,6 +349,43 @@ class PolicyEngine:
                 reason=f"{diag.cause}: offer alternate method ({alt.value})",
             )
 
+        # ---- re-authorization request -------------------------------
+        if action_type is ActionType.REQUEST_REAUTH:
+            # Asking the customer to re-authorize a paused/expired UPI AutoPay mandate: an
+            # outbound contact (weekly cap + quiet hours apply), NOT a charge — it does not
+            # touch the NPCI retry budget and needs no 24h pre-debit notice.
+            cf = rule_contact_frequency(state)
+            trace.append(cf)
+            if not cf.passed:
+                return self._terminal(
+                    event,
+                    diag,
+                    trace,
+                    ActionType.STOP_AND_ESCALATE,
+                    reason="contact cap reached; cannot send another re-auth request",
+                    human=True,
+                )
+            scheduled = clamp_out_of_quiet(state.now + timedelta(hours=_NOTICE_LEAD_H))
+            trace.append(rule_quiet_hours(scheduled))
+            trace.append(
+                RuleEvaluation(
+                    rule="reauth_is_a_contact_not_a_charge",
+                    passed=True,
+                    detail="does not consume an NPCI retry; no pre-debit notice required",
+                )
+            )
+            return self._build(
+                event,
+                diag,
+                trace,
+                ActionType.REQUEST_REAUTH,
+                scheduled_at=scheduled,
+                channel="whatsapp",
+                round_no=state.round_no,
+                reason=f"{diag.cause}: request mandate re-authorization "
+                f"(mandate_state={event.mandate_state})",
+            )
+
         # ---- default: nothing to do ---------------------------------
         trace.append(
             RuleEvaluation(rule="no_applicable_action", passed=True, detail=f"desired={desired}")

@@ -97,6 +97,8 @@ def _action_to_intervention(
         return InterventionType.GRACE_48H
     if action_type is ActionType.OFFER_ALTERNATE_METHOD:
         return InterventionType.METHOD_SWITCH
+    if action_type is ActionType.REQUEST_REAUTH:
+        return InterventionType.REAUTH_LINK
     if action_type is ActionType.SEND_NOTIFICATION:
         return (
             InterventionType.WHATSAPP_UPI_LINK
@@ -268,6 +270,12 @@ class Agent:
                     recovered, recovered_amt, terminal = True, result.recovered_amount_paise, at
                     break
             elif result.executed and at is ActionType.OFFER_ALTERNATE_METHOD:
+                state.contacts_this_week += 1
+                if result.gateway_success:
+                    recovered, recovered_amt, terminal = True, result.recovered_amount_paise, at
+                    break
+            elif result.executed and at is ActionType.REQUEST_REAUTH:
+                # An outbound contact, never a charge — counts against the weekly cap only.
                 state.contacts_this_week += 1
                 if result.gateway_success:
                     recovered, recovered_amt, terminal = True, result.recovered_amount_paise, at

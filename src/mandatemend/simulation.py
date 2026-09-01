@@ -31,6 +31,7 @@ INTERVENTION_TO_ACTION: dict[InterventionType, ActionType] = {
     InterventionType.GRACE_48H: ActionType.GRACE_EXTEND,
     InterventionType.PARTIAL_CHARGE: ActionType.PARTIAL_CHARGE,
     InterventionType.METHOD_SWITCH: ActionType.OFFER_ALTERNATE_METHOD,
+    InterventionType.REAUTH_LINK: ActionType.REQUEST_REAUTH,
 }
 
 

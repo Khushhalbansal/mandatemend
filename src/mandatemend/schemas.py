@@ -49,6 +49,7 @@ class InterventionType(StrEnum):
     GRACE_48H = "GRACE_48H"
     PARTIAL_CHARGE = "PARTIAL_CHARGE"
     METHOD_SWITCH = "METHOD_SWITCH"
+    REAUTH_LINK = "REAUTH_LINK"  # ask the customer to re-authorize a paused/expired mandate
 
 
 class ActionType(StrEnum):
@@ -59,6 +60,7 @@ class ActionType(StrEnum):
     OFFER_ALTERNATE_METHOD = "OFFER_ALTERNATE_METHOD"
     GRACE_EXTEND = "GRACE_EXTEND"
     PARTIAL_CHARGE = "PARTIAL_CHARGE"
+    REQUEST_REAUTH = "REQUEST_REAUTH"  # outbound contact; re-authorize a dead mandate. NOT a charge.
     STOP_AND_ESCALATE = "STOP_AND_ESCALATE"
     NO_ACTION = "NO_ACTION"
 

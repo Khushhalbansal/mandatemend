@@ -77,6 +77,29 @@ def test_limit_exceeded_amount_over_cap_downgrades_to_partial():
         assert act.amount_paise <= ev.mandate_max_amount_paise
 
 
+def test_reauth_request_is_a_contact_not_a_charge():
+    ra, ia = _advice(InterventionType.REAUTH_LINK)
+    ev = make_event(mandate_state=MandateState.EXPIRED, err_code="UMN_EXPIRED")
+    st = LoopState(now=NOW, retries_used=0, contacts_this_week=0)
+    act = ENGINE.decide(ev, _diag(FailureCause.MANDATE_EXPIRED), ra, ia, st)
+    assert act.action_type is ActionType.REQUEST_REAUTH
+    assert act.amount_paise is None  # not a debit
+    assert act.retry_delay_bucket is None  # does not occupy a retry slot
+    # scheduled out of quiet hours, and the trace says it doesn't touch the NPCI budget
+    assert not (act.scheduled_at.hour >= 21 or act.scheduled_at.hour < 8)
+    assert any(rt.rule == "reauth_is_a_contact_not_a_charge" for rt in act.rule_trace)
+    assert any(rt.rule == "contact_frequency" for rt in act.rule_trace)
+
+
+def test_reauth_request_respects_the_weekly_contact_cap():
+    ra, ia = _advice(InterventionType.REAUTH_LINK)
+    ev = make_event(mandate_state=MandateState.PAUSED, err_code="UMN_PAUSED")
+    st = LoopState(now=NOW, contacts_this_week=3)  # cap already reached
+    act = ENGINE.decide(ev, _diag(FailureCause.MANDATE_PAUSED), ra, ia, st)
+    assert act.action_type is ActionType.STOP_AND_ESCALATE
+    assert act.requires_human is True
+
+
 def test_every_action_carries_a_rule_trace():
     ra, ia = _advice()
     for cause in FailureCause:

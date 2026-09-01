@@ -30,6 +30,17 @@ def check_resolution(event: FailureEvent, res: MandateResolution) -> list[str]:
         for r in res.timeline
         if r.action.action_type is ActionType.SEND_NOTIFICATION and r.executed
     ]
+    outbound_contacts = [
+        r
+        for r in res.timeline
+        if r.executed
+        and r.action.action_type
+        in (
+            ActionType.SEND_NOTIFICATION,
+            ActionType.OFFER_ALTERNATE_METHOD,
+            ActionType.REQUEST_REAUTH,
+        )
+    ]
 
     # 1. NPCI retry cap: at most `npci_max_retries` executed charge attempts.
     if len(charges) > settings.npci_max_retries:
@@ -52,19 +63,19 @@ def check_resolution(event: FailureEvent, res: MandateResolution) -> list[str]:
                 f"has no notice >= {settings.predebit_notice_hours}h earlier"
             )
 
-    # 3. Quiet hours: no executed outbound contact in [quiet_start, quiet_end).
-    for n in notices:
+    # 3. Quiet hours: no executed outbound contact (notice, alternate-method offer, or
+    #    re-auth request) in [quiet_start, quiet_end).
+    for n in outbound_contacts:
         h = n.action.scheduled_at.hour
         if h >= settings.quiet_hours_start or h < settings.quiet_hours_end:
-            v.append(f"QUIET_HOURS: contact scheduled at hour {h}")
+            v.append(
+                f"QUIET_HOURS: {n.action.action_type.value} scheduled at hour {h}"
+            )
 
     # 4. Contact frequency: the contacts the AGENT made this session must not exceed the
     #    remaining weekly budget. A mandate that arrives already at/over the cap is not the
     #    agent's doing — what matters is that it then adds nothing.
-    contact_actions = {ActionType.SEND_NOTIFICATION, ActionType.OFFER_ALTERNATE_METHOD}
-    session_contacts = sum(
-        1 for r in res.timeline if r.executed and r.action.action_type in contact_actions
-    )
+    session_contacts = len(outbound_contacts)
     remaining_budget = max(0, settings.max_contacts_per_week - event.history.contacts_this_week)
     if session_contacts > remaining_budget:
         v.append(
