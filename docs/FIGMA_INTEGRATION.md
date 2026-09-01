@@ -120,7 +120,7 @@ per-component stylesheet, no JS behaviour, no client-side state. Every screen mu
 | CSS | one hand-written global stylesheet | `console/static/app.css` |
 | JS | **none** | — |
 | bundler / transpiler | **none** | — |
-| ML / data (the actual project) | numpy, pandas, scikit-learn, lifelines, SQLAlchemy, pydantic | `pyproject.toml` |
+| ML / data (the actual project) | numpy, scikit-learn, SQLAlchemy, pydantic | `pyproject.toml` |
 
 ```python
 # src/mandatemend/console/app.py — the whole rendering setup

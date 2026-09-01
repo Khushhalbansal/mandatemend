@@ -5,6 +5,15 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-01 — deps: dropped `lifelines` + `pandas` (declared, never imported)
+The scaffold planned a `lifelines` survival fit for retry timing (see the 2026-09-01
+scaffold entry below); the model that actually shipped is an sklearn
+`HistGradientBoostingClassifier` in a discrete-time-hazard framing, so `lifelines` — and its
+heavy transitive tree (scipy is kept for sklearn, but matplotlib / autograd / formulaic /
+patsy are gone) — plus `pandas` were dead weight. Removed from `pyproject.toml`;
+`requirements-lock.txt` regenerated from a clean venv (49 packages, was ~60). Also
+`schemas.py`: `class StrEnum(str, Enum)` → `from enum import StrEnum` (we require ≥3.12).
+
 ### 2026-09-01 — iteration 7: deterministic data generation (reproducibility bug)
 * **`data/generator.py` was not reproducible.** It seeded per-mandate RNGs with
   `abs(hash((mandate_id, ...)))`, and Python's `hash()` for str/bytes is salted per process

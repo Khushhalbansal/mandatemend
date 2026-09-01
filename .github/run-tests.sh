@@ -6,8 +6,10 @@ label="$1"; shift
 paths="$1"; shift
 log="/tmp/pytest-${label}.log"
 
+# `python -m pytest` (not bare `pytest`) so the repo root is on sys.path even before the
+# pythonpath=["."] ini option kicks in.
 # shellcheck disable=SC2086
-pytest -q -rA -p no:cacheprovider ${paths} "$@" >"$log" 2>&1
+python -m pytest -q -rA -p no:cacheprovider ${paths} "$@" >"$log" 2>&1
 rc=$?
 cat "$log"
 if [ "$rc" -ne 0 ]; then

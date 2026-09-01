@@ -65,6 +65,10 @@ per-file-ignores = { "tests/**" = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Put the repo root on sys.path so `from tests.conftest import ...` resolves regardless of
+# how pytest is invoked (`pytest` vs `python -m pytest`) or the cwd. Without this, a bare
+# `pytest` call on CI hit `ModuleNotFoundError: No module named 'tests'` during collection.
+pythonpath = ["."]
 # `live` tests hit the real Razorpay test-mode API (network) — opt in with `pytest -m live`.
 addopts = ["-m", "not live"]
 markers = [
