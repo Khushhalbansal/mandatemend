@@ -5,6 +5,27 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-02 — iteration 12c (work-stream E2): re-auth outcomes on v2, dead-mandate recovery
+
+- `data/generator.py --freeze-reauth-v2` writes **`data/heldout_reauth_v2.frozen.json`** — a
+  `REQUEST_REAUTH` outcome (`success` / `amount` / `p`) for each of the 97 paused/expired v2
+  mandates. `p(re-approve) ≈ 0.62` non-churning / `0.12` churning, tenure-scaled;
+  deterministic (`_seed(mandate_id, "reauth")`). **The v2 batch + labels are byte-identical
+  — this is its own frozen file, own SHA line, own CI check** (`.gitattributes` `-text`, the
+  frozen-SHA gate now covers all five files).
+- `SimulatedGateway(labels, reauth_outcomes=)` — `REQUEST_REAUTH` is keyed on the mandate id
+  (re-auth timing isn't modelled). `run_batch.run(batch="v2")` loads the supplement when
+  present; the scorecard note reads `[batch=v2 +reauth]`.
+- Engine: the dead-mandate substitution now routes a genuinely PAUSED/EXPIRED/REVOKED mandate
+  to `REQUEST_REAUTH` first (the NPCI-correct move), falling back to the collect link only
+  for a cause-only "dead" diagnosis or after re-auth was already tried. **Primary batch
+  byte-identical** (63.51 %, dead buckets unchanged — on the primary the re-auth request
+  gets no realized outcome, then the collect link still fires next round).
+- **Result on v2:** `MANDATE_PAUSED` 33.9 → **48.4 %**, `MANDATE_EXPIRED` 31.4 → **40.0 %**,
+  v2 overall 63.45 → **64.38 %**, **0 compliance violations** across all 1000 mandates. The
+  re-auth path lifts exactly the weakest buckets — what the architecture always intended and
+  the 300-batch couldn't show. `docs/MODELS.md §4e`.
+
 ### 2026-09-02 — iteration 12a/12b (work-streams E1 + F): re-auth path + AFA ceiling (I13)
 
 **12a — `REQUEST_REAUTH` action + `REAUTH_LINK` intervention.** The real UPI AutoPay flow

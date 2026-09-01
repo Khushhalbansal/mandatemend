@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # 300-batch above stays THE headline metric; v2 is a robustness check.
     heldout_batch_v2: Path = REPO_ROOT / "data" / "heldout_batch_v2.frozen.json"
     heldout_labels_v2: Path = REPO_ROOT / "data" / "heldout_labels_v2.frozen.json"
+    # REQUEST_REAUTH outcomes for the v2 batch's paused/expired mandates (its own frozen
+    # file; the v2 batch/labels are never modified). Absent -> re-auth has no realized
+    # outcome and the agent falls back to a collect link.
+    heldout_reauth_v2: Path = REPO_ROOT / "data" / "heldout_reauth_v2.frozen.json"
     iter_log: Path = REPO_ROOT / "logs" / "iterations.jsonl"
 
     # --- Policy constants (NPCI + operational). Enforced in the policy engine only. ---

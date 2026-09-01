@@ -1,0 +1,496 @@
+{
+  "meta": {
+    "batch": "v2-reauth-supplement",
+    "generated_at": "2026-09-01T09:00:00+00:00",
+    "n_reauth_mandates": 97,
+    "note": "REQUEST_REAUTH outcomes for paused/expired v2 mandates only; keyed by mandate_id",
+    "seed": 20260901
+  },
+  "reauth": {
+    "mnd_01352825_1100005": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100006": {
+      "amount_paise": 99900,
+      "p": 0.5924,
+      "success": true
+    },
+    "mnd_01352825_1100010": {
+      "amount_paise": 49900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100013": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100015": {
+      "amount_paise": 29900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100023": {
+      "amount_paise": 149900,
+      "p": 0.558,
+      "success": true
+    },
+    "mnd_01352825_1100025": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100035": {
+      "amount_paise": 0,
+      "p": 0.088,
+      "success": false
+    },
+    "mnd_01352825_1100036": {
+      "amount_paise": 79900,
+      "p": 0.4891,
+      "success": true
+    },
+    "mnd_01352825_1100064": {
+      "amount_paise": 499900,
+      "p": 0.558,
+      "success": true
+    },
+    "mnd_01352825_1100071": {
+      "amount_paise": 0,
+      "p": 0.12,
+      "success": false
+    },
+    "mnd_01352825_1100072": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100076": {
+      "amount_paise": 99900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100086": {
+      "amount_paise": 299900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100091": {
+      "amount_paise": 99900,
+      "p": 0.0813,
+      "success": true
+    },
+    "mnd_01352825_1100096": {
+      "amount_paise": 79900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100100": {
+      "amount_paise": 0,
+      "p": 0.12,
+      "success": false
+    },
+    "mnd_01352825_1100141": {
+      "amount_paise": 79900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100147": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100156": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100180": {
+      "amount_paise": 99900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100181": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100182": {
+      "amount_paise": 149900,
+      "p": 0.4202,
+      "success": true
+    },
+    "mnd_01352825_1100188": {
+      "amount_paise": 0,
+      "p": 0.12,
+      "success": false
+    },
+    "mnd_01352825_1100192": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100229": {
+      "amount_paise": 299900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100241": {
+      "amount_paise": 149900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100242": {
+      "amount_paise": 29900,
+      "p": 0.3513,
+      "success": true
+    },
+    "mnd_01352825_1100243": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100246": {
+      "amount_paise": 0,
+      "p": 0.2824,
+      "success": false
+    },
+    "mnd_01352825_1100251": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100252": {
+      "amount_paise": 19900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100261": {
+      "amount_paise": 0,
+      "p": 0.12,
+      "success": false
+    },
+    "mnd_01352825_1100279": {
+      "amount_paise": 499900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100290": {
+      "amount_paise": 0,
+      "p": 0.5236,
+      "success": false
+    },
+    "mnd_01352825_1100324": {
+      "amount_paise": 49900,
+      "p": 0.3858,
+      "success": true
+    },
+    "mnd_01352825_1100325": {
+      "amount_paise": 49900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100343": {
+      "amount_paise": 0,
+      "p": 0.12,
+      "success": false
+    },
+    "mnd_01352825_1100348": {
+      "amount_paise": 0,
+      "p": 0.1147,
+      "success": false
+    },
+    "mnd_01352825_1100356": {
+      "amount_paise": 29900,
+      "p": 0.5236,
+      "success": true
+    },
+    "mnd_01352825_1100364": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100366": {
+      "amount_paise": 0,
+      "p": 0.4891,
+      "success": false
+    },
+    "mnd_01352825_1100392": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100415": {
+      "amount_paise": 299900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100419": {
+      "amount_paise": 499900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100429": {
+      "amount_paise": 0,
+      "p": 0.3858,
+      "success": false
+    },
+    "mnd_01352825_1100450": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100458": {
+      "amount_paise": 299900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100484": {
+      "amount_paise": 149900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100504": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100516": {
+      "amount_paise": 49900,
+      "p": 0.5924,
+      "success": true
+    },
+    "mnd_01352825_1100517": {
+      "amount_paise": 0,
+      "p": 0.088,
+      "success": false
+    },
+    "mnd_01352825_1100531": {
+      "amount_paise": 0,
+      "p": 0.12,
+      "success": false
+    },
+    "mnd_01352825_1100540": {
+      "amount_paise": 299900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100549": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100559": {
+      "amount_paise": 19900,
+      "p": 0.4891,
+      "success": true
+    },
+    "mnd_01352825_1100580": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100582": {
+      "amount_paise": 29900,
+      "p": 0.0747,
+      "success": true
+    },
+    "mnd_01352825_1100585": {
+      "amount_paise": 0,
+      "p": 0.3169,
+      "success": false
+    },
+    "mnd_01352825_1100599": {
+      "amount_paise": 79900,
+      "p": 0.12,
+      "success": true
+    },
+    "mnd_01352825_1100607": {
+      "amount_paise": 19900,
+      "p": 0.5236,
+      "success": true
+    },
+    "mnd_01352825_1100634": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100636": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100641": {
+      "amount_paise": 79900,
+      "p": 0.4891,
+      "success": true
+    },
+    "mnd_01352825_1100643": {
+      "amount_paise": 149900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100649": {
+      "amount_paise": 19900,
+      "p": 0.5236,
+      "success": true
+    },
+    "mnd_01352825_1100650": {
+      "amount_paise": 0,
+      "p": 0.088,
+      "success": false
+    },
+    "mnd_01352825_1100653": {
+      "amount_paise": 79900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100687": {
+      "amount_paise": 0,
+      "p": 0.12,
+      "success": false
+    },
+    "mnd_01352825_1100694": {
+      "amount_paise": 49900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100698": {
+      "amount_paise": 19900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100708": {
+      "amount_paise": 0,
+      "p": 0.558,
+      "success": false
+    },
+    "mnd_01352825_1100715": {
+      "amount_paise": 29900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100754": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100774": {
+      "amount_paise": 499900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100780": {
+      "amount_paise": 0,
+      "p": 0.3513,
+      "success": false
+    },
+    "mnd_01352825_1100800": {
+      "amount_paise": 499900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100813": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100822": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100834": {
+      "amount_paise": 19900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100845": {
+      "amount_paise": 29900,
+      "p": 0.5924,
+      "success": true
+    },
+    "mnd_01352825_1100847": {
+      "amount_paise": 79900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100852": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100878": {
+      "amount_paise": 0,
+      "p": 0.558,
+      "success": false
+    },
+    "mnd_01352825_1100887": {
+      "amount_paise": 99900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100895": {
+      "amount_paise": 0,
+      "p": 0.2824,
+      "success": false
+    },
+    "mnd_01352825_1100900": {
+      "amount_paise": 0,
+      "p": 0.4202,
+      "success": false
+    },
+    "mnd_01352825_1100901": {
+      "amount_paise": 0,
+      "p": 0.4547,
+      "success": false
+    },
+    "mnd_01352825_1100926": {
+      "amount_paise": 29900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100928": {
+      "amount_paise": 299900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100929": {
+      "amount_paise": 14900,
+      "p": 0.4547,
+      "success": true
+    },
+    "mnd_01352825_1100962": {
+      "amount_paise": 49900,
+      "p": 0.4547,
+      "success": true
+    },
+    "mnd_01352825_1100979": {
+      "amount_paise": 0,
+      "p": 0.3169,
+      "success": false
+    },
+    "mnd_01352825_1100980": {
+      "amount_paise": 49900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100988": {
+      "amount_paise": 19900,
+      "p": 0.62,
+      "success": true
+    },
+    "mnd_01352825_1100995": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    },
+    "mnd_01352825_1100999": {
+      "amount_paise": 0,
+      "p": 0.62,
+      "success": false
+    }
+  }
+}

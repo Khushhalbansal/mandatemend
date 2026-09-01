@@ -220,6 +220,30 @@ Two things v2 makes clear that the 300-batch could not:
   +16.33 pp. The stable, honest number is the **absolute recovery rate**; the lift depends
   on which baseline draw the batch happens to contain.
 
+### 4e. Re-authorization path on v2 (iteration 12c)
+
+Paused / expired mandates can't be debited (**I3**) — the correct UPI AutoPay recovery is a
+**re-authorization request** (`REQUEST_REAUTH`): the customer re-approves in their UPI app
+and the mandate returns ACTIVE. The primary 300-batch has no re-auth potential outcomes, so
+the agent there falls back to a one-off collect link. The v2 batch gets a **separately
+frozen** supplement (`data/heldout_reauth_v2.frozen.json` — the v2 batch/labels themselves
+are never modified) with a `REQUEST_REAUTH` outcome for each of its 97 paused/expired
+mandates: `p(re-approve) ≈ 0.62` for a non-churning customer, `≈ 0.12` for a churning one,
+scaled by tenure.
+
+`mandatemend score --batch v2` (with the supplement present) vs without it:
+
+| bucket | without re-auth | with re-auth |
+|---|---:|---:|
+| `MANDATE_PAUSED` (n = 62) | 33.9 % | **48.4 %** |
+| `MANDATE_EXPIRED` (n = 35) | 31.4 % | **40.0 %** |
+| v2 overall | 63.45 % | 64.38 % |
+
+**0 compliance violations** with the re-auth path active — `REQUEST_REAUTH` is bound as an
+outbound contact (I4 quiet hours, I5 weekly cap) and never as a charge (I1, I2), verified by
+`check_resolution` on all 1000 v2 mandates. It lifts exactly the weakest buckets, which the
+architecture always intended but the primary batch could not demonstrate.
+
 ## 5. Known limitations
 
 - Synthetic training data cannot perfectly preserve real behavioural patterns (arXiv

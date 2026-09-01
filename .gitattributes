@@ -7,4 +7,5 @@ data/heldout_batch.frozen.json     -text
 data/heldout_labels.frozen.json    -text
 data/heldout_batch_v2.frozen.json  -text
 data/heldout_labels_v2.frozen.json -text
+data/heldout_reauth_v2.frozen.json -text
 data/FROZEN_SHA256.txt             -text

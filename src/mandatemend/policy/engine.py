@@ -15,6 +15,7 @@ from mandatemend import POLICY_VERSION
 from mandatemend.config import settings
 from mandatemend.policy.rules import (
     CHARGING_ACTIONS,
+    DEAD_MANDATE_STATES,
     LoopState,
     clamp_out_of_quiet,
     rule_afa_exemption,
@@ -121,14 +122,20 @@ class PolicyEngine:
         live = rule_mandate_live_for_charge(event, diag)
         trace.append(live)
         if not live.passed and action_type in CHARGING_ACTIONS:
-            action_type = ActionType.SEND_NOTIFICATION
-            desired = InterventionType.WHATSAPP_UPI_LINK
+            if event.mandate_state in DEAD_MANDATE_STATES and not state.reauth_done:
+                # A genuinely paused/expired/revoked mandate: the NPCI-correct recovery is a
+                # re-authorization request, not an AutoPay debit and not a bare collect link.
+                action_type = ActionType.REQUEST_REAUTH
+                desired = InterventionType.REAUTH_LINK
+                detail = f"mandate {event.mandate_state} -> request re-authorization"
+            else:
+                # Cause-only "dead" (state still ACTIVE — the LLM may be wrong), or re-auth
+                # already attempted this session: fall back to a one-off UPI collect link.
+                action_type = ActionType.SEND_NOTIFICATION
+                desired = InterventionType.WHATSAPP_UPI_LINK
+                detail = "mandate not chargeable -> WhatsApp UPI collect link instead"
             trace.append(
-                RuleEvaluation(
-                    rule="dead_mandate_substitution",
-                    passed=False,
-                    detail="mandate not chargeable -> WhatsApp UPI collect link instead",
-                )
+                RuleEvaluation(rule="dead_mandate_substitution", passed=False, detail=detail)
             )
 
         # ---- charging branch ------------------------------------------------

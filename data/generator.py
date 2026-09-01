@@ -478,12 +478,67 @@ def _freeze_v2(seed: int, n_v2: int) -> None:
         os.chmod(p, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
     print(f"heldout_batch_v2.frozen.json   events={len(events)}  sha256={sha_b}")
     print(f"heldout_labels_v2.frozen.json  labels={len(labels)}  sha256={sha_l}")
+    _record_sha(
+        {"heldout_batch_v2.frozen.json": sha_b, "heldout_labels_v2.frozen.json": sha_l}
+    )
+
+
+def _record_sha(entries: dict[str, str]) -> None:
+    """Merge {filename: sha256} into data/FROZEN_SHA256.txt, replacing any existing lines
+    for those filenames and keeping the others."""
     sha_file = DATA_DIR / "FROZEN_SHA256.txt"
     existing = sha_file.read_text(encoding="utf-8") if sha_file.exists() else ""
-    lines = [ln for ln in existing.splitlines() if ln and "heldout_batch_v2" not in ln
-             and "heldout_labels_v2" not in ln]
-    lines += [f"heldout_batch_v2.frozen.json  {sha_b}", f"heldout_labels_v2.frozen.json {sha_l}"]
-    sha_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    keep = [
+        ln
+        for ln in existing.splitlines()
+        if ln.strip() and ln.split()[0] not in entries
+    ]
+    keep += [f"{name}  {sha}" for name, sha in entries.items()]
+    sha_file.write_text("\n".join(keep) + "\n", encoding="utf-8")
+
+
+def _freeze_reauth_v2(seed: int, n_v2: int) -> None:
+    """Supplement the frozen v2 batch with REQUEST_REAUTH potential outcomes for its
+    paused/expired mandates (a real UPI AutoPay re-authorization flow). Written to its OWN
+    frozen file — heldout_batch_v2 / heldout_labels_v2 are NOT touched.
+
+    p(re-auth succeeds) ~ a non-churning customer with tenure re-approves; a churning one
+    mostly does not. Timing is not modelled (the customer either re-approves or not), so the
+    gateway keys re-auth on the mandate id alone.
+    """
+    r_path = DATA_DIR / "heldout_reauth_v2.frozen.json"
+    if r_path.exists():
+        raise SystemExit(
+            f"REFUSING to overwrite {r_path.name}: frozen and read-only (CLAUDE.md §1.3/§3.1)."
+        )
+    rng0 = np.random.default_rng(seed)
+    down_issuers = list(rng0.choice(ISSUERS, size=2, replace=False))
+    down_start = NOW - timedelta(hours=float(rng0.uniform(4.0, 16.0)))
+    reauth: dict[str, dict] = {}
+    for i in range(_HELDOUT_V2_OFFSET, _HELDOUT_V2_OFFSET + n_v2):
+        d = MandateDraw(i, seed, down_issuers, down_start)
+        if not d.mandate_dead:  # only paused/expired mandates have a re-auth path
+            continue
+        p = 0.62 if not d.churn_intent else 0.12
+        p *= min(1.0, 0.4 + d.tenure_months / 18.0)  # longer tenure -> more likely to re-approve
+        p = float(np.clip(p, 0.0, 0.95))
+        succ = bool(np.random.default_rng(_seed(d.mandate_id, "reauth")).random() < p)
+        reauth[d.mandate_id] = {
+            "success": succ,
+            "amount_paise": d.amount_paise if succ else 0,
+            "p": round(p, 4),
+        }
+    meta = {
+        "batch": "v2-reauth-supplement",
+        "generated_at": NOW.isoformat(),
+        "seed": seed,
+        "n_reauth_mandates": len(reauth),
+        "note": "REQUEST_REAUTH outcomes for paused/expired v2 mandates only; keyed by mandate_id",
+    }
+    sha = _write_json(r_path, {"meta": meta, "reauth": reauth})
+    os.chmod(r_path, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
+    print(f"heldout_reauth_v2.frozen.json  mandates={len(reauth)}  sha256={sha}")
+    _record_sha({"heldout_reauth_v2.frozen.json": sha})
 
 
 def main() -> None:
@@ -505,10 +560,19 @@ def main() -> None:
         "(data/heldout_batch_v2.frozen.json, index range [1_100_000, ...)). Does not touch the "
         "training set or the primary frozen batch. Refuses to overwrite (CLAUDE.md §3.1).",
     )
+    ap.add_argument(
+        "--freeze-reauth-v2",
+        action="store_true",
+        help="write ONLY data/heldout_reauth_v2.frozen.json — REQUEST_REAUTH outcomes for the "
+        "paused/expired v2 mandates. The existing v2 batch/labels are NOT touched.",
+    )
     args = ap.parse_args()
 
     if args.freeze_v2:
         _freeze_v2(args.seed, args.n_v2)
+        return
+    if args.freeze_reauth_v2:
+        _freeze_reauth_v2(args.seed, args.n_v2)
         return
 
     batch_path = DATA_DIR / "heldout_batch.frozen.json"

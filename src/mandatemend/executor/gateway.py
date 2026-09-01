@@ -33,8 +33,13 @@ _NON_MONEY = {ActionType.NO_ACTION, ActionType.STOP_AND_ESCALATE}
 class SimulatedGateway:
     name = "simulated"
 
-    def __init__(self, labels: dict[str, dict]):
+    def __init__(
+        self, labels: dict[str, dict], reauth_outcomes: dict[str, dict] | None = None
+    ):
         self._labels = labels
+        # {mandate_id: {"success", "amount_paise", "p"}} for REQUEST_REAUTH — supplied only
+        # for the v2 batch; keyed on the mandate id (re-auth timing is not modelled).
+        self._reauth = reauth_outcomes or {}
 
     @classmethod
     def from_frozen(cls, path: Path | None = None) -> SimulatedGateway:
@@ -51,6 +56,12 @@ class SimulatedGateway:
     def attempt(self, action: Action, event: FailureEvent) -> tuple[bool | None, int, str]:
         if action.action_type in _NON_MONEY:
             return None, 0, f"{action.action_type.value}: no money move"
+
+        if action.action_type is ActionType.REQUEST_REAUTH:
+            entry = self._reauth.get(event.mandate_id)
+            if entry is None:
+                return False, 0, "no realized re-auth outcome for this mandate (cannot invent one)"
+            return bool(entry["success"]), int(entry["amount_paise"]), f"reauth p={entry['p']}"
 
         table = self._labels.get(event.mandate_id, {}).get("outcomes", {})
         if not table:

@@ -84,6 +84,7 @@ jobs:
           for name in (
               "heldout_batch.frozen.json", "heldout_labels.frozen.json",
               "heldout_batch_v2.frozen.json", "heldout_labels_v2.frozen.json",
+              "heldout_reauth_v2.frozen.json",
           ):
               got = hashlib.sha256(pathlib.Path("data", name).read_bytes()).hexdigest()
               if got != rec[name]:

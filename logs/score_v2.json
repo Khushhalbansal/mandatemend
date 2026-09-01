@@ -1,33 +1,33 @@
 {
-  "iteration": 14,
-  "ts": "2026-09-01T20:18:20.073051Z",
-  "git_sha": "9fa509c",
-  "note": "[batch=v2] F2 v2 invariance | audit_chain: chain OK across 7544 entries",
+  "iteration": 15,
+  "ts": "2026-09-01T20:29:11.870485Z",
+  "git_sha": "7cce3f1",
+  "note": "[batch=v2 +reauth] 12c v2 + reauth | audit_chain: chain OK across 7571 entries",
   "tests_passed": 0,
   "tests_total": 0,
   "lint_errors": 0,
   "type_errors": 0,
   "batch_size": 1000,
   "amount_at_risk_paise": 139615000,
-  "recovered_paise": 88591660,
-  "batch_recovery_rate": 0.6345,
+  "recovered_paise": 89880460,
+  "batch_recovery_rate": 0.6438,
   "recovery_rate_ci": [
-    0.5953,
-    0.6731
+    0.6043,
+    0.6819
   ],
   "baseline_lift_ci": [
-    0.0447,
-    0.1311
+    0.0537,
+    0.1414
   ],
   "baseline_static_recovery_rate": 0.548,
   "baseline_email_only_recovery_rate": 0.1731,
   "baseline_single_retry_recovery_rate": 0.2884,
-  "baseline_lift": 0.0865,
+  "baseline_lift": 0.0958,
   "retries_used_total": 1045,
-  "recoveries_per_retry": 0.6517,
-  "unnecessary_contacts": 623,
-  "escalated_count": 319,
-  "harm_cost_paise": 93450,
+  "recoveries_per_retry": 0.6632,
+  "unnecessary_contacts": 631,
+  "escalated_count": 307,
+  "harm_cost_paise": 94650,
   "compliance_violations": 0,
   "per_cause": [
     {
@@ -72,28 +72,28 @@
     {
       "cause": "MANDATE_EXPIRED",
       "n": 35,
-      "recovered": 11,
-      "rate": 0.3143,
+      "recovered": 14,
+      "rate": 0.4,
       "rate_ci": [
-        0.1855,
-        0.4798
+        0.2555,
+        0.5643
       ],
       "amt_risk_paise": 5601500,
-      "amt_recovered_paise": 2048900,
-      "escalated": 24
+      "amt_recovered_paise": 2613600,
+      "escalated": 21
     },
     {
       "cause": "MANDATE_PAUSED",
       "n": 62,
-      "recovered": 21,
-      "rate": 0.3387,
+      "recovered": 30,
+      "rate": 0.4839,
       "rate_ci": [
-        0.2334,
-        0.4628
+        0.3641,
+        0.6055
       ],
       "amt_risk_paise": 9593800,
-      "amt_recovered_paise": 3582900,
-      "escalated": 41
+      "amt_recovered_paise": 4307000,
+      "escalated": 32
     },
     {
       "cause": "SUSPECTED_CHURN",

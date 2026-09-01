@@ -79,18 +79,31 @@ def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (round(max(0.0, center - half), 4), round(min(1.0, center + half), 4))
 
 
+def _load_reauth(batch: str) -> dict[str, dict]:
+    """v2 REQUEST_REAUTH outcomes, if the (separately-frozen) supplement is present."""
+    if batch != "v2":
+        return {}
+    p = Path(settings.heldout_reauth_v2)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8")).get("reauth", {})
+
+
 def run(
     *, iteration: int = 0, note: str = "", git_sha: str | None = None, batch: str = "primary"
 ) -> Scorecard:
     events, labels = _load_frozen(batch)
+    reauth = _load_reauth(batch)
     if batch != "primary":
-        note = f"[batch={batch}] {note}".strip()
+        note = f"[batch={batch}{' +reauth' if reauth else ''}] {note}".strip()
 
     init_engine("sqlite://", create=True)
     ledger.reset_cache()
     ledger.begin_buffer()
 
-    agent = Agent.default(gateway=SimulatedGateway(labels), audit_enabled=True)
+    agent = Agent.default(
+        gateway=SimulatedGateway(labels, reauth_outcomes=reauth), audit_enabled=True
+    )
     agent.warm(events)  # batch-precompute model inference
 
     n = len(events)
