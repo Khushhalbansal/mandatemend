@@ -1,7 +1,7 @@
 # MandateMend
 
 [![CI](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml/badge.svg)](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml)
-&nbsp;coverage 90% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 104 tests (94 + 10 Hypothesis property tests) &nbsp;·&nbsp; `redteam` 5/5
+&nbsp;coverage ~90% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 112 tests + 10 Hypothesis property tests &nbsp;·&nbsp; `redteam` 5/5 &nbsp;·&nbsp; mutation check 17/17
 
 **A compliance-gated recovery agent for failed UPI AutoPay / e-mandate debits.**
 Razorpay AI Buildathon 2026 — Track 03 (AI Revenue Recovery), sub-angle 3A.
@@ -119,7 +119,7 @@ Runs entirely offline against synthetic data. Trained model artifacts are commit
 
 ```
 $ mandatemend score
-MandateMend batch scorecard  (v0.1.0, iteration 11)
+MandateMend batch scorecard  (v0.1.0, iteration 16)
   batch size                 300
   amount at risk             Rs 462,300
   recovered (agent)          Rs 293,588   63.51%   95% CI [56.28%, 70.45%]
@@ -132,12 +132,12 @@ MandateMend batch scorecard  (v0.1.0, iteration 11)
   contacts on non-recovered  181   harm cost Rs 272
   escalated to human         92
   COMPLIANCE VIOLATIONS      0
-  per cause:
-    BANK_DOWNTIME        n=38   rec=34    89.47%  esc=4
-    INSUFFICIENT_FUNDS   n=134  rec=96    71.64%  esc=38
-    TECH_DECLINE         n=59   rec=51    86.44%  esc=8
+  per cause (rate with 95% Wilson CI):
+    BANK_DOWNTIME        n=38   rec=34    89.47%  [75.87%, 95.83%]  esc=4
+    INSUFFICIENT_FUNDS   n=134  rec=96    71.64%  [63.49%, 78.59%]  esc=38
+    TECH_DECLINE         n=59   rec=51    86.44%  [75.46%, 92.97%]  esc=8
     ...
-  tests 94/94   lint_errors 0   type_errors 0
+  tests 112/112   lint_errors 0   type_errors 0
 ```
 
 ## Data & scoring isolation (CLAUDE.md §1.3)
