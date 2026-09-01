@@ -59,6 +59,7 @@ class LoopState:
     consecutive_hard_declines: int = 0
     grace_used: bool = False
     last_notice_at: datetime | None = None
+    reauth_done: bool = False  # a REQUEST_REAUTH was executed this session (AFA satisfied)
     escalated: bool = False
     trace: list[RuleEvaluation] = field(default_factory=list)
 
@@ -160,6 +161,21 @@ def rule_amount_within_cap(amount_paise: int, event: FailureEvent) -> RuleEvalua
         rule="amount_within_cap",
         passed=ok,
         detail=f"amount={amount_paise}p vs mandate cap {event.mandate_max_amount_paise}p",
+    )
+
+
+def rule_afa_exemption(amount_paise: int, reauth_done: bool) -> RuleEvaluation:
+    """UPI AutoPay AFA exemption: a recurring debit at/below the ceiling needs no per-txn
+    Additional Factor of Authentication; above it, the debit requires a fresh
+    re-authorization first (NPCI OC 82). `reauth_done` = a REQUEST_REAUTH executed this
+    session. See docs/NPCI.md."""
+    over = amount_paise > settings.afa_exemption_ceiling_paise
+    ok = (not over) or reauth_done
+    return RuleEvaluation(
+        rule="afa_exemption",
+        passed=ok,
+        detail=f"amount={amount_paise}p vs AFA ceiling {settings.afa_exemption_ceiling_paise}p; "
+        f"reauth_done={reauth_done}",
     )
 
 

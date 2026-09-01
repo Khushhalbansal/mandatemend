@@ -17,6 +17,7 @@ from mandatemend.policy.rules import (
     CHARGING_ACTIONS,
     LoopState,
     clamp_out_of_quiet,
+    rule_afa_exemption,
     rule_amount_within_cap,
     rule_confidence_gate,
     rule_contact_frequency,
@@ -172,6 +173,24 @@ class PolicyEngine:
                                 rule="amount_substitution",
                                 passed=False,
                                 detail="even partial charge over cap -> offer alternate method",
+                            )
+                        )
+
+                # AFA (I13): a debit above the AFA-exemption ceiling needs a fresh
+                # re-authorization first — a bare pre-debit notice is not enough. Route to
+                # REQUEST_REAUTH until one has been done this session.
+                if action_type in CHARGING_ACTIONS:
+                    afa = rule_afa_exemption(amount, state.reauth_done)
+                    trace.append(afa)
+                    if not afa.passed:
+                        action_type = ActionType.REQUEST_REAUTH
+                        desired = InterventionType.REAUTH_LINK
+                        trace.append(
+                            RuleEvaluation(
+                                rule="afa_substitution",
+                                passed=False,
+                                detail="debit over AFA ceiling with no re-auth this session "
+                                "-> request re-authorization first",
                             )
                         )
 

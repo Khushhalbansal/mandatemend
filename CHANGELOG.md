@@ -5,6 +5,35 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-02 — iteration 12a/12b (work-streams E1 + F): re-auth path + AFA ceiling (I13)
+
+**12a — `REQUEST_REAUTH` action + `REAUTH_LINK` intervention.** The real UPI AutoPay flow
+for a paused/expired mandate: ask the customer to re-authorize (they re-approve in their UPI
+app → mandate returns ACTIVE). Wired everywhere as an **outbound contact, never a charge** —
+it is in `CONTACT_ACTIONS` (weekly cap + quiet hours apply, I4/I5) and never in
+`CHARGING_ACTIONS` (no NPCI retry consumed, no 24h notice needed). Engine gets a
+`REQUEST_REAUTH` branch; the quiet-hours and contact-frequency checks in `invariants.py` now
+cover all three outbound-contact types via a shared `outbound_contacts` list. **Primary and
+v2 batches byte-identical** (63.51 % / 63.45 %, 0 violations): the shipped T-learner has no
+`REAUTH_LINK` training rows so it never picks it, and the dead-mandate substitution is
+unchanged — the path is inert until the v2 re-auth outcomes land (12c).
+
+**12b — `docs/NPCI.md` + `rule_afa_exemption` + invariant I13.**
+  * `docs/NPCI.md` — the regulatory surface the engine enforces: UMN lifecycle, the
+    ₹15,000 AFA-exemption ceiling (NPCI OC 82), the ₹1 L category cap, 24h/T-1 pre-debit
+    notice, 1+3 retry cap, pause/revoke mid-flight.
+  * **I13** — no executed `RETRY` / `PARTIAL_CHARGE` above `afa_exemption_ceiling_paise`
+    (= ₹15,000) unless a `REQUEST_REAUTH` was executed earlier in the session. Enforced by
+    `rule_afa_exemption(amount, state.reauth_done)` in the engine's charging branch
+    (`afa_substitution` → routes to `REQUEST_REAUTH`); re-verified by checker rule 6b
+    (`AFA_EXEMPTION`). The synthetic batches top out at ₹4,999, so — like the injected NPCI
+    cap violation — I13 is proven by crafted unit tests (₹20,000 mandate), not a batch
+    mandate. No scorecard change on either batch.
+  * `scripts/mutcheck.py` gained 3 AFA mutations (now 17). First run 16/17 — the survivor
+    was again a "checker over-strict at the exact boundary" mutant (a charge *exactly* at
+    ₹15,000 flagged as needing re-auth); closed with
+    `test_afa_ceiling_boundary_charge_exactly_at_ceiling_is_exempt`. **Now 17/17.**
+
 ### 2026-09-02 — iteration 11 (work-stream D): small-n honesty + the v2 cross-check batch
 
 **11a — per-cause Wilson score intervals.** `wilson_interval(k, n)` in `batch/run_batch.py`;

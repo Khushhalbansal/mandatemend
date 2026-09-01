@@ -93,6 +93,23 @@ def check_resolution(event: FailureEvent, res: MandateResolution) -> list[str]:
         if amt > event.mandate_max_amount_paise:
             v.append(f"AMOUNT_OVER_CAP: {amt}p > {event.mandate_max_amount_paise}p")
 
+    # 6b. AFA (I13): a debit above the AFA-exemption ceiling requires a prior executed
+    #     re-authorization request in the same session.
+    ceiling = settings.afa_exemption_ceiling_paise
+    reauths = [
+        r
+        for r in res.timeline
+        if r.action.action_type is ActionType.REQUEST_REAUTH and r.executed
+    ]
+    for c in charges:
+        if (c.action.amount_paise or 0) > ceiling:
+            prior = [r for r in reauths if r.action.scheduled_at <= c.action.scheduled_at]
+            if not prior:
+                v.append(
+                    f"AFA_EXEMPTION: charge {c.action.amount_paise}p > AFA ceiling {ceiling}p "
+                    f"with no prior re-authorization"
+                )
+
     # 7. Every executed action carries a non-empty rule trace.
     for r in res.timeline:
         if r.executed and not r.action.rule_trace:

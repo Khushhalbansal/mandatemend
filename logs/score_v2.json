@@ -1,8 +1,8 @@
 {
-  "iteration": 13,
-  "ts": "2026-09-01T19:34:54.733686Z",
-  "git_sha": "27aca4e",
-  "note": "[batch=v2] iter11c v2 cross-check | audit_chain: chain OK across 7544 entries",
+  "iteration": 14,
+  "ts": "2026-09-01T20:18:20.073051Z",
+  "git_sha": "9fa509c",
+  "note": "[batch=v2] F2 v2 invariance | audit_chain: chain OK across 7544 entries",
   "tests_passed": 0,
   "tests_total": 0,
   "lint_errors": 0,

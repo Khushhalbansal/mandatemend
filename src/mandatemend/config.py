@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # --- Policy constants (NPCI + operational). Enforced in the policy engine only. ---
     npci_max_retries: int = 3  # 1 original attempt + up to 3 retries
     predebit_notice_hours: int = 24  # notice must precede a scheduled debit by >= this
+    # UPI AutoPay AFA (Additional Factor of Authentication) exemption ceiling: a recurring
+    # e-mandate debit at or below this needs no per-txn AFA; above it, a debit requires a
+    # fresh re-authorization (NPCI OC 82 / RBI e-mandate framework). See docs/NPCI.md.
+    afa_exemption_ceiling_paise: int = 1_500_000  # Rs 15,000
     quiet_hours_start: int = 21  # 21:00 IST
     quiet_hours_end: int = 8  # 08:00 IST
     max_contacts_per_week: int = 3

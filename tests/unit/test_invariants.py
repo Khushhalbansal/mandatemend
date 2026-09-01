@@ -117,6 +117,37 @@ def test_reauth_request_in_quiet_hours_is_a_violation():
     assert any("QUIET_HOURS" in x and "REQUEST_REAUTH" in x for x in v)
 
 
+def test_afa_exemption_violation():
+    # a Rs 20,000 charge (> Rs 15k AFA ceiling) with no prior re-auth
+    ev = make_event(amount_paise=2_000_000, mandate_max_amount_paise=2_500_000)
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    big = _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25), amount=2_000_000))
+    v = check_resolution(ev, _res(notice, big, contacts=1))
+    assert any("AFA_EXEMPTION" in x for x in v)
+
+
+def test_afa_exemption_ok_with_a_prior_reauth():
+    ev = make_event(amount_paise=2_000_000, mandate_max_amount_paise=2_500_000)
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    reauth = _ok(_act(ActionType.REQUEST_REAUTH, at=NOW + timedelta(hours=1)))
+    big = _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25), amount=2_000_000))
+    v = check_resolution(ev, _res(notice, reauth, big, contacts=2))
+    assert not any("AFA_EXEMPTION" in x for x in v)
+
+
+def test_afa_ceiling_boundary_charge_exactly_at_ceiling_is_exempt():
+    # a charge for *exactly* the AFA ceiling needs no re-auth (guards `>` vs `>=` in the
+    # checker's rule 6b).
+    from mandatemend.config import settings
+
+    ceiling = settings.afa_exemption_ceiling_paise
+    ev = make_event(amount_paise=ceiling, mandate_max_amount_paise=ceiling)
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    at_ceiling = _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25), amount=ceiling))
+    v = check_resolution(ev, _res(notice, at_ceiling, contacts=1))
+    assert not any("AFA_EXEMPTION" in x for x in v), v
+
+
 def test_predebit_notice_violation():
     ev = make_event()
     retry = _ok(_act(ActionType.RETRY, at=NOW, amount=ev.amount_paise))  # no notice at all

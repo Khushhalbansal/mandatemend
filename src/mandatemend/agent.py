@@ -277,6 +277,7 @@ class Agent:
             elif result.executed and at is ActionType.REQUEST_REAUTH:
                 # An outbound contact, never a charge — counts against the weekly cap only.
                 state.contacts_this_week += 1
+                state.reauth_done = True  # AFA (I13) satisfied for any later high-value retry
                 if result.gateway_success:
                     recovered, recovered_amt, terminal = True, result.recovered_amount_paise, at
                     break

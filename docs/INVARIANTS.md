@@ -183,17 +183,25 @@ crash never risks a second charge).**
 - **Proven by** `tests/property/test_policy_invariants.py` (a hostile advice object never
   produces a charge), `tests/integration/test_redteam.py`.
 
-## I13 — AFA re-authorization ceiling *(planned — iteration 12, work-stream F)*
+## I13 — AFA re-authorization ceiling  *(iteration 12b)*
 
-**Above the ₹15,000 UPI-AutoPay AFA-exemption ceiling, a retry requires a fresh
-re-authorization (`REQUEST_REAUTH`), not a bare pre-debit notice.**
+**No executed `RETRY` / `PARTIAL_CHARGE` for more than `settings.afa_exemption_ceiling_paise`
+(= ₹15,000) unless a `REQUEST_REAUTH` was executed earlier in the same session.** Above the
+UPI-AutoPay AFA-exemption ceiling a debit needs a fresh Additional Factor of Authentication
+(a re-authorization), not a bare 24h pre-debit notice (NPCI OC 82 — see `docs/NPCI.md §2`).
 
-- **Will be enforced by** `rule_afa_exemption` in `policy/rules.py` + a branch in
-  `engine.py` routing over-ceiling charges to `REQUEST_REAUTH`.
-- **Will be re-verified by** a new checker rule (`AFA_EXEMPTION`) in `invariants.py`.
-- **Status:** not yet implemented. Tracked in
-  `C:\Users\khush\.claude\plans\where-a-strong-competitor-melodic-music.md` (iter 12) and
-  `docs/NPCI.md` (F1). Listed here so the numbering is stable.
+- **Enforced by** `rule_afa_exemption(amount_paise, state.reauth_done)` (`rules.py`), checked
+  in the engine's charging branch after the per-txn cap check (`engine.py`,
+  `afa_substitution`): an over-ceiling charge with `reauth_done == False` is replaced by
+  `REQUEST_REAUTH`. `state.reauth_done` is set by the agent after an executed `REQUEST_REAUTH`.
+- **Re-verified by** checker rule 6b (`invariants.py`): for each executed charge with
+  `amount_paise > ceiling`, requires a prior executed `REQUEST_REAUTH` in the timeline;
+  flags `AFA_EXEMPTION` otherwise.
+- **Proven by** `test_policy_rules.py::test_afa_exemption`,
+  `test_policy_engine.py::test_high_value_charge_needs_reauth_first`,
+  `test_invariants.py::test_afa_exemption_violation` (crafted ₹20,000 mandate — the synthetic
+  batches top out at ₹4,999, so like the injected-violation case for I1, this invariant is
+  proven by a crafted test rather than a batch mandate).
 
 ---
 
@@ -206,7 +214,7 @@ The goal is to prove the tests *catch a broken rule*, not merely execute it. The
 | # | measurement | scope | score | what it tells you |
 |---|---|---|---|---|
 | **M1** | automated `mutmut` sweep | *every* mutable token in `policy/rules.py` + `policy/engine.py` + `invariants.py` (281 mutants) | **109 killed / 171 survived — ~39% raw** | broad but noisy; most survivors triaged as non-behavioural (mutated imports, docstrings, and `detail=`/`reason=` rule-trace strings that change no decision) |
-| **M2** | targeted manual check (`scripts/mutcheck.py`) | 14 hand-picked *live rule-mutations* — every comparison operator / boolean connective in the compliance predicates and the independent checker | **14 / 14 killed — 100%** | the decision-changing mutations are all caught by a unit test or a property |
+| **M2** | targeted manual check (`scripts/mutcheck.py`) | 17 hand-picked *live rule-mutations* — every comparison operator / boolean connective in the compliance predicates and the independent checker | **17 / 17 killed — 100%** | the decision-changing mutations are all caught by a unit test or a property |
 
 M1 is the honest raw floor; M2 is the targeted proof on the mutations that actually matter.
 Read them as a pair.
@@ -226,21 +234,21 @@ populate the human-readable `rule_trace` (e.g. `"confidence=%.2f vs threshold"` 
   reported as-is, without adjustment, as the raw automated floor.
 - The mutations that *would* change a decision are enumerated and checked directly in M2.
 
-### M2 — targeted manual check on live rule-mutations (14/14)
+### M2 — targeted manual check on live rule-mutations (17/17)
 
-`python scripts/mutcheck.py` applies 14 hand-picked **decision-changing** mutations — every
+`python scripts/mutcheck.py` applies 17 hand-picked **decision-changing** mutations — every
 comparison operator and boolean connective in the compliance predicates (`policy/rules.py`)
 and in the independent checker (`invariants.py`): `<`↔`<=`, `>`↔`>=`, `or`↔`and`,
 cap-comparison flips, the NPCI off-by-one. For each: apply, run the unit
 predicate/engine/checker tests **and** the full property suite, revert. A mutant is killed
 if either run goes red.
 
-**Result: 14 / 14 caught (100%).** The first run of this check caught only 12/14 — the two
-survivors were both boundary gaps in the *independent checker's* tests (a charge count of
-*exactly* 3, and a charge amount *exactly* at the mandate cap — both legal, neither pinned
-by a test, so a `>`→`>=` mutation that makes the checker over-strict went unnoticed). Fixed
-by adding `test_npci_cap_boundary_exactly_three_charges_is_ok` and
-`test_amount_cap_boundary_charge_exactly_at_cap_is_ok` to `tests/unit/test_invariants.py`.
+**Result: 17 / 17 caught (100%).** The mutation set grows with the rule set — iteration 12b
+added 3 for the AFA ceiling (I13). Each time, a "checker over-strict at the exact boundary"
+mutant has survived first (a charge count of *exactly* 3, an amount *exactly* at the mandate
+cap, an amount *exactly* at the AFA ceiling — all legal, none pinned by a test), and each was
+closed by adding a boundary test to `tests/unit/test_invariants.py`
+(`test_*_boundary_*_is_ok`).
 
 | # | mutation | invariant | killed by |
 |---|---|---|---|
@@ -258,6 +266,9 @@ by adding `test_npci_cap_boundary_exactly_three_charges_is_ok` and
 | 12 | checker quiet-hours `or` → `and` | I4 | `test_invariants::test_quiet_hours_violation` |
 | 13 | checker contact-freq `>` → `<` | I5 | `test_invariants::test_contact_frequency_violation` |
 | 14 | checker amount-cap `>` → `>=` | I6 | `test_invariants::test_amount_cap_boundary_charge_exactly_at_cap_is_ok` (added) |
+| 15 | AFA ceiling `>` → `>=` | I13 | `test_policy_rules::test_afa_exemption` |
+| 16 | AFA exemption `or` → `and` | I13 | `test_policy_rules::test_afa_exemption` + `test_policy_engine::test_high_value_charge_needs_reauth_first` |
+| 17 | checker AFA ceiling `>` → `>=` | I13 | `test_invariants::test_afa_ceiling_boundary_charge_exactly_at_ceiling_is_exempt` (added) |
 
 Re-run both M1 and M2 whenever `policy/` or `invariants.py` changes materially, and keep
 reporting them as two separate numbers.

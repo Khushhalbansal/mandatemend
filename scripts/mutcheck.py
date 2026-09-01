@@ -60,6 +60,14 @@ MUTATIONS = [
      "ok = state.consecutive_hard_declines < limit",
      "ok = state.consecutive_hard_declines <= limit",
      "stopping-rule off-by-one"),
+    ("src/mandatemend/policy/rules.py",
+     "over = amount_paise > settings.afa_exemption_ceiling_paise",
+     "over = amount_paise >= settings.afa_exemption_ceiling_paise",
+     "I13 AFA ceiling boundary"),
+    ("src/mandatemend/policy/rules.py",
+     "ok = (not over) or reauth_done",
+     "ok = (not over) and reauth_done",
+     "I13 AFA exemption logic (or -> and)"),
     # --- invariants.py (the independent checker) --------------------------------------
     ("src/mandatemend/invariants.py",
      "if len(charges) > settings.npci_max_retries:",
@@ -81,6 +89,10 @@ MUTATIONS = [
      "if amt > event.mandate_max_amount_paise:",
      "if amt >= event.mandate_max_amount_paise:",
      "checker I6 amount-cap boundary"),
+    ("src/mandatemend/invariants.py",
+     "if (c.action.amount_paise or 0) > ceiling:",
+     "if (c.action.amount_paise or 0) >= ceiling:",
+     "checker I13 AFA-ceiling boundary"),
 ]
 
 _BASE = [PY, "-m", "pytest", "-q", "-x", "--no-header", "-p", "no:cacheprovider"]
@@ -97,7 +109,9 @@ PROP_RUN = [*_BASE, "-m", "property", "tests/property"]
 
 def run_suite() -> bool:
     for cmd in (UNIT_RUN, PROP_RUN):
-        if subprocess.run(cmd, cwd=REPO, capture_output=True, text=True).returncode != 0:
+        # hardcoded pytest invocation, dev-only script
+        r = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)  # noqa: S603
+        if r.returncode != 0:
             return False
     return True
 

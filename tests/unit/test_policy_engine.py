@@ -1,6 +1,6 @@
 """Policy engine: the invariants that protect money (CLAUDE.md §2/§8)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from mandatemend.policy.engine import PolicyEngine
 from mandatemend.policy.rules import LoopState
@@ -98,6 +98,20 @@ def test_reauth_request_respects_the_weekly_contact_cap():
     act = ENGINE.decide(ev, _diag(FailureCause.MANDATE_PAUSED), ra, ia, st)
     assert act.action_type is ActionType.STOP_AND_ESCALATE
     assert act.requires_human is True
+
+
+def test_high_value_charge_needs_reauth_first():
+    ra, ia = _advice(InterventionType.RETRY_ONLY)
+    ev = make_event(amount_paise=2_000_000, mandate_max_amount_paise=2_500_000)  # > Rs 15k AFA ceiling
+    st = LoopState(now=NOW, last_notice_at=NOW - timedelta(hours=30), reauth_done=False)
+    act = ENGINE.decide(ev, _diag(), ra, ia, st)
+    assert act.action_type is ActionType.REQUEST_REAUTH
+    assert any(rt.rule == "afa_substitution" for rt in act.rule_trace)
+    # once a re-auth has been done this session, the same request yields a real retry
+    st2 = LoopState(now=NOW, last_notice_at=NOW - timedelta(hours=30), reauth_done=True)
+    act2 = ENGINE.decide(ev, _diag(), ra, ia, st2)
+    assert act2.action_type is ActionType.RETRY
+    assert act2.amount_paise == 2_000_000
 
 
 def test_every_action_carries_a_rule_trace():

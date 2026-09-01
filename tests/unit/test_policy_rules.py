@@ -79,6 +79,14 @@ def test_amount_within_cap():
     assert rules.rule_amount_within_cap(90_000, ev).passed
 
 
+def test_afa_exemption():
+    ceiling = settings.afa_exemption_ceiling_paise
+    assert rules.rule_afa_exemption(1_000_000, reauth_done=False).passed  # below ceiling
+    assert rules.rule_afa_exemption(ceiling, reauth_done=False).passed  # exactly at ceiling is exempt
+    assert not rules.rule_afa_exemption(ceiling + 1, reauth_done=False).passed  # over, no re-auth
+    assert rules.rule_afa_exemption(ceiling + 1, reauth_done=True).passed  # over, but re-auth done
+
+
 def test_clamp_out_of_quiet_pushes_to_0800():
     late = NOW.replace(hour=23)
     clamped = rules.clamp_out_of_quiet(late)
