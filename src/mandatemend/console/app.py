@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -15,21 +17,21 @@ templates = Jinja2Templates(directory=str(_HERE / "templates"))
 templates.env.filters["rupees"] = lambda p: f"{(p or 0) / 100:,.0f}"
 templates.env.filters["pct"] = lambda x: f"{(x or 0) * 100:.1f}%"
 
-app = FastAPI(title="MandateMend operator console")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    service.build()  # run one batch and cache it before serving
+    yield
+
+
+app = FastAPI(title="MandateMend operator console", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")
-
-
-@app.on_event("startup")
-def _warm() -> None:
-    service.build()
 
 
 @app.get("/", response_class=HTMLResponse)
 def overview(request: Request):
     v = service.view()
-    return templates.TemplateResponse(
-        "overview.html", {"request": request, "v": v, "sc": v.scorecard}
-    )
+    return templates.TemplateResponse(request, "overview.html", {"v": v, "sc": v.scorecard})
 
 
 @app.get("/mandates", response_class=HTMLResponse)
@@ -46,8 +48,9 @@ def mandates(request: Request, cause: str = "", outcome: str = ""):
         rows = [r for r in rows if r.violations]
     causes = sorted({r.true_cause for r in v.rows})
     return templates.TemplateResponse(
+        request,
         "mandates.html",
-        {"request": request, "rows": rows, "causes": causes, "cause": cause, "outcome": outcome},
+        {"rows": rows, "causes": causes, "cause": cause, "outcome": outcome},
     )
 
 
@@ -59,8 +62,7 @@ def mandate(request: Request, mandate_id: str):
     from mandatemend.audit import ledger
 
     return templates.TemplateResponse(
-        "mandate.html",
-        {"request": request, "r": r, "audit": ledger.entries_for(mandate_id)},
+        request, "mandate.html", {"r": r, "audit": ledger.entries_for(mandate_id)}
     )
 
 

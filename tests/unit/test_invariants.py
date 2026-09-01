@@ -1,0 +1,112 @@
+"""Independent compliance checker — each violation branch fires on a crafted timeline."""
+
+from datetime import UTC, datetime, timedelta
+
+from mandatemend.invariants import check_resolution
+from mandatemend.schemas import (
+    Action,
+    ActionType,
+    ExecutionResult,
+    MandateResolution,
+    RuleEvaluation,
+    TypedDiagnosis,
+)
+from tests.conftest import make_event
+
+NOW = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
+
+
+def _diag():
+    from mandatemend.schemas import FailureCause
+
+    return TypedDiagnosis(cause=FailureCause.INSUFFICIENT_FUNDS, confidence=0.9, rationale="x", source="t")
+
+
+def _act(kind: ActionType, *, at: datetime, amount: int | None = None, channel: str | None = None) -> Action:
+    return Action(
+        action_type=kind,
+        mandate_id="mnd_test_0001",
+        idempotency_key=f"k-{kind.value}-{at:%Y%m%d%H%M%S}",
+        scheduled_at=at,
+        amount_paise=amount,
+        channel=channel,
+        reason="crafted",
+        rule_trace=[RuleEvaluation(rule="x", passed=True)],
+        policy_version="p",
+        diagnosis=_diag(),
+    )
+
+
+def _res(*steps: ExecutionResult, contacts: int = 0) -> MandateResolution:
+    return MandateResolution(
+        mandate_id="mnd_test_0001",
+        amount_at_risk_paise=49900,
+        recovered=False,
+        recovered_amount_paise=0,
+        retries_used=sum(1 for s in steps if s.action.action_type is ActionType.RETRY),
+        contacts_made=contacts,
+        terminal_action=ActionType.STOP_AND_ESCALATE,
+        escalated_to_human=True,
+        timeline=list(steps),
+    )
+
+
+def _ok(a: Action, success: bool = False) -> ExecutionResult:
+    return ExecutionResult(action=a, executed=True, gateway_success=success, recovered_amount_paise=0)
+
+
+def test_clean_timeline_has_no_violations():
+    ev = make_event()
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW, channel="whatsapp"))
+    retry = _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25), amount=ev.amount_paise))
+    assert check_resolution(ev, _res(notice, retry, contacts=1)) == []
+
+
+def test_npci_cap_violation():
+    ev = make_event()
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    retries = [
+        _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25 + i), amount=ev.amount_paise))
+        for i in range(4)
+    ]
+    v = check_resolution(ev, _res(notice, *retries, contacts=1))
+    assert any("NPCI_RETRY_CAP" in x for x in v)
+
+
+def test_predebit_notice_violation():
+    ev = make_event()
+    retry = _ok(_act(ActionType.RETRY, at=NOW, amount=ev.amount_paise))  # no notice at all
+    v = check_resolution(ev, _res(retry))
+    assert any("PREDEBIT_NOTICE" in x for x in v)
+
+
+def test_quiet_hours_violation():
+    ev = make_event()
+    late = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW.replace(hour=23), channel="sms"))
+    v = check_resolution(ev, _res(late, contacts=1))
+    assert any("QUIET_HOURS" in x for x in v)
+
+
+def test_dead_mandate_charge_violation():
+    from mandatemend.schemas import MandateState
+
+    ev = make_event(mandate_state=MandateState.PAUSED, err_code="UMN_PAUSED")
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    retry = _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25), amount=ev.amount_paise))
+    v = check_resolution(ev, _res(notice, retry, contacts=1))
+    assert any("DEAD_MANDATE_CHARGE" in x for x in v)
+
+
+def test_amount_over_cap_violation():
+    ev = make_event(amount_paise=200_000, mandate_max_amount_paise=150_000)
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    over = _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25), amount=200_000))
+    v = check_resolution(ev, _res(notice, over, contacts=1))
+    assert any("AMOUNT_OVER_CAP" in x for x in v)
+
+
+def test_contact_frequency_violation():
+    ev = make_event()
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    v = check_resolution(ev, _res(notice, contacts=4))
+    assert any("CONTACT_FREQUENCY" in x for x in v)

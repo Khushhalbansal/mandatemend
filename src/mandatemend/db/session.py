@@ -44,7 +44,11 @@ def _make_engine(url: str) -> Engine:
 
 
 def init_engine(url: str | None = None, *, create: bool = True) -> Engine:
+    """(Re)bind the process to a database. Disposes the previous engine first so repeated
+    calls — batch runs, the console rebuild, the test suite — don't leak connections."""
     global _engine, _Session
+    if _engine is not None:
+        _engine.dispose()
     _engine = _make_engine(url or settings.db_url)
     _Session = sessionmaker(bind=_engine, future=True, expire_on_commit=False)
     if create:
