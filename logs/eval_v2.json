@@ -1,0 +1,114 @@
+{
+  "batch": "v2",
+  "ablation": {
+    "baseline_static_recovery_rate": 0.548,
+    "table": [
+      {
+        "config": "naive static-retry ladder (no agent)",
+        "recovery_rate": 0.548,
+        "lift_vs_static_pp": 0.0
+      },
+      {
+        "config": "heuristic_retry + heuristic_uplift",
+        "recovery_rate": 0.5669,
+        "lift_vs_static_pp": 0.0189
+      },
+      {
+        "config": "survival_retry + heuristic_uplift",
+        "recovery_rate": 0.6292,
+        "lift_vs_static_pp": 0.0812
+      },
+      {
+        "config": "heuristic_retry + t_learner_uplift",
+        "recovery_rate": 0.5248,
+        "lift_vs_static_pp": -0.0232
+      },
+      {
+        "config": "survival_retry + t_learner_uplift (shipped)",
+        "recovery_rate": 0.6345,
+        "lift_vs_static_pp": 0.0865
+      }
+    ]
+  },
+  "by_cause": {
+    "table": [
+      {
+        "cause": "BANK_DOWNTIME",
+        "n": 166,
+        "recovery_rate": 0.9458,
+        "wilson_ci": [
+          0.9002,
+          0.9712
+        ],
+        "static_retry_rate": 0.9518,
+        "lift_vs_static_pp": -0.006
+      },
+      {
+        "cause": "INSUFFICIENT_FUNDS",
+        "n": 434,
+        "recovery_rate": 0.6797,
+        "wilson_ci": [
+          0.6344,
+          0.7219
+        ],
+        "static_retry_rate": 0.5507,
+        "lift_vs_static_pp": 0.129
+      },
+      {
+        "cause": "LIMIT_EXCEEDED",
+        "n": 82,
+        "recovery_rate": 0.5488,
+        "wilson_ci": [
+          0.4413,
+          0.6519
+        ],
+        "static_retry_rate": 0.1829,
+        "lift_vs_static_pp": 0.3659
+      },
+      {
+        "cause": "MANDATE_EXPIRED",
+        "n": 35,
+        "recovery_rate": 0.3143,
+        "wilson_ci": [
+          0.1855,
+          0.4798
+        ],
+        "static_retry_rate": 0.0,
+        "lift_vs_static_pp": 0.3143
+      },
+      {
+        "cause": "MANDATE_PAUSED",
+        "n": 62,
+        "recovery_rate": 0.3387,
+        "wilson_ci": [
+          0.2334,
+          0.4628
+        ],
+        "static_retry_rate": 0.0,
+        "lift_vs_static_pp": 0.3387
+      },
+      {
+        "cause": "SUSPECTED_CHURN",
+        "n": 36,
+        "recovery_rate": 0.3056,
+        "wilson_ci": [
+          0.18,
+          0.4686
+        ],
+        "static_retry_rate": 0.2778,
+        "lift_vs_static_pp": 0.0278
+      },
+      {
+        "cause": "TECH_DECLINE",
+        "n": 185,
+        "recovery_rate": 0.7622,
+        "wilson_ci": [
+          0.6959,
+          0.8178
+        ],
+        "static_retry_rate": 0.7081,
+        "lift_vs_static_pp": 0.0541
+      }
+    ]
+  }
+}

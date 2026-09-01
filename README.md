@@ -44,6 +44,13 @@ two real safety holes this iteration — see *What broke*.
 | terminal state | every mandate ends **recovered** or **on the human queue** — never dropped |
 | one real Razorpay **test-mode** round-trip | `plink_…` created, HTTP 200, wired through the executor + audit ledger (`mandatemend live-check`) |
 
+**Cross-check on a disjoint 1000-mandate batch** (`mandatemend score --batch v2`): recovery
+**63.45 %** (95 % CI [59.5 %, 67.3 %]) — the absolute number holds. Lift there is **+8.65 pp**,
+lower only because that batch's static-retry baseline (54.8 %) is easier than the primary's
+(47.2 %) — same agent, different baseline draw. **The stable, honest number is the absolute
+recovery rate; lift is baseline-sensitive.** 0 compliance violations at 1000 mandates. See
+[`docs/MODELS.md §4`](docs/MODELS.md).
+
 Numbers are **byte-reproducible**: `data/generator.py` is fully deterministic (stable
 `blake2b` seeds, not salted `hash()`), so `python data/generator.py && mandatemend train &&
 mandatemend score` gives the same result on any machine. CIs are a seeded, mandate-resampled

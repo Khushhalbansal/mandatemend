@@ -88,7 +88,7 @@ def cmd_score(args: argparse.Namespace) -> int:
         lines = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
         iteration = len(lines)
 
-    sc = run(iteration=iteration, note=args.note, git_sha=_git_sha())
+    sc = run(iteration=iteration, note=args.note, git_sha=_git_sha(), batch=args.batch)
     if not args.fast:
         sc.tests_passed, sc.tests_total = _count_tests()
         sc.lint_errors = _count_lint()
@@ -100,7 +100,14 @@ def cmd_score(args: argparse.Namespace) -> int:
         f"type_errors {sc.type_errors}"
     )
 
-    if not args.no_log:
+    if args.batch != "primary":
+        # v2 is a robustness cross-check, not the tracked loop metric — never appended to
+        # iterations.jsonl. Latest v2 scorecard goes to its own file.
+        out = log.parent / f"score_{args.batch}.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(sc.model_dump_json(indent=2), encoding="utf-8")
+        print(f"  -> wrote {out}  (v2 is a cross-check; not logged as an iteration)")
+    elif not args.no_log:
         log.parent.mkdir(parents=True, exist_ok=True)
         with log.open("a", encoding="utf-8") as f:
             f.write(sc.model_dump_json() + "\n")
@@ -206,16 +213,20 @@ def cmd_redteam(_a: argparse.Namespace) -> int:
 def cmd_eval(args: argparse.Namespace) -> int:
     from mandatemend import eval as ev
 
-    picked = args.sequencing or args.calibration or args.ablation
+    picked = args.sequencing or args.calibration or args.ablation or args.by_cause
     out = ev.run_all(
         do_sequencing=args.sequencing or not picked,
         do_calibration=args.calibration or not picked,
         do_ablation=args.ablation or not picked,
+        do_by_cause=args.by_cause or not picked,
+        batch=args.batch,
     )
     print(ev.format_report(out))
-    ev.EVAL_JSON.parent.mkdir(parents=True, exist_ok=True)
-    ev.EVAL_JSON.write_text(_json_dumps(out), encoding="utf-8")
-    print(f"  -> wrote {ev.EVAL_JSON}")
+    suffix = "" if args.batch == "primary" else f"_{args.batch}"
+    path = ev.EVAL_JSON.with_name(f"eval{suffix}.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_json_dumps(out), encoding="utf-8")
+    print(f"  -> wrote {path}")
     return 0
 
 
@@ -249,6 +260,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--note", default="")
     s.add_argument("--fast", action="store_true", help="skip pytest/ruff/mypy")
     s.add_argument("--no-log", action="store_true", help="do not append to iterations.jsonl")
+    s.add_argument(
+        "--batch",
+        choices=("primary", "v2"),
+        default="primary",
+        help="which frozen batch to score (v2 is the 1000-mandate cross-check; not logged as an iteration)",
+    )
     s.set_defaults(fn=cmd_score)
 
     d = sub.add_parser("demo")
@@ -271,6 +288,8 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--sequencing", action="store_true", help="only the sequencing metric")
     ev.add_argument("--calibration", action="store_true", help="only the calibration / ECE report")
     ev.add_argument("--ablation", action="store_true", help="only the ablation table")
+    ev.add_argument("--by-cause", action="store_true", help="only the per-cause table (Wilson CI + lift)")
+    ev.add_argument("--batch", choices=("primary", "v2"), default="primary", help="which frozen batch")
     ev.set_defaults(fn=cmd_eval)
 
     args = p.parse_args(argv)

@@ -29,10 +29,19 @@ _BOOTSTRAP = 2000
 _BOOTSTRAP_SEED = 20260901
 
 
-def _load_frozen() -> tuple[list[FailureEvent], dict]:
-    batch = json.loads(Path(settings.heldout_batch).read_text(encoding="utf-8"))
-    labels = json.loads(Path(settings.heldout_labels).read_text(encoding="utf-8"))
-    events = [FailureEvent.model_validate(e) for e in batch["events"]]
+def _batch_paths(batch: str = "primary") -> tuple[Path, Path]:
+    if batch == "v2":
+        return Path(settings.heldout_batch_v2), Path(settings.heldout_labels_v2)
+    if batch == "primary":
+        return Path(settings.heldout_batch), Path(settings.heldout_labels)
+    raise ValueError(f"unknown batch {batch!r} (expected 'primary' or 'v2')")
+
+
+def _load_frozen(batch: str = "primary") -> tuple[list[FailureEvent], dict]:
+    b_path, l_path = _batch_paths(batch)
+    batch_json = json.loads(b_path.read_text(encoding="utf-8"))
+    labels = json.loads(l_path.read_text(encoding="utf-8"))
+    events = [FailureEvent.model_validate(e) for e in batch_json["events"]]
     return events, labels["labels"]
 
 
@@ -70,8 +79,12 @@ def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (round(max(0.0, center - half), 4), round(min(1.0, center + half), 4))
 
 
-def run(*, iteration: int = 0, note: str = "", git_sha: str | None = None) -> Scorecard:
-    events, labels = _load_frozen()
+def run(
+    *, iteration: int = 0, note: str = "", git_sha: str | None = None, batch: str = "primary"
+) -> Scorecard:
+    events, labels = _load_frozen(batch)
+    if batch != "primary":
+        note = f"[batch={batch}] {note}".strip()
 
     init_engine("sqlite://", create=True)
     ledger.reset_cache()

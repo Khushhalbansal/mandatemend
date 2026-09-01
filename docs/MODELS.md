@@ -184,15 +184,41 @@ didn't. Fix: only `RETRY_ONLY` passes the override now. Result: shipped **61.42 
 (+2.1 pp), the entire `TECH_DECLINE` bleed (4 mandates / ₹6.4 k) gone, retries *down*
 295 → 287, 0 compliance violations.
 
-**Residual gap: 1.7 pp.** `survival + heuristic` (65.23 %) still leads the shipped
-`survival + T-learner` (63.51 %). What remains is concentrated in `LIMIT_EXCEEDED` (n = 2)
-and the dead-mandate buckets (`MANDATE_PAUSED/EXPIRED`, n ≈ 4) — the T-learner steers to
-`OFFER_ALTERNATE_METHOD` where the heuristic's WhatsApp-link path does better — while the
-T-learner is clearly *ahead* on the big `INSUFFICIENT_FUNDS` bucket (+16 mandates / ₹32 k
-recovered that the heuristic misses). On n ≈ 2–4 mandates the sign of that residual is not
-trustworthy. Decision deferred to iteration 11's disjoint 1000-mandate v2 batch: if
-`survival + heuristic` still leads there, the shipped default changes and the T-learner is
-kept as an option / an honest negative result. Not switched off one thin batch.
+**Residual gap on the primary batch: 1.7 pp.** `survival + heuristic` (65.23 %) still leads
+the shipped `survival + T-learner` (63.51 %). What remains is concentrated in
+`LIMIT_EXCEEDED` (n = 2) and the dead-mandate buckets (`MANDATE_PAUSED/EXPIRED`, n ≈ 4) —
+the T-learner steers to `OFFER_ALTERNATE_METHOD` where the heuristic's WhatsApp-link path
+does better — while the T-learner is clearly *ahead* on the big `INSUFFICIENT_FUNDS` bucket
+(+16 mandates / ₹32 k recovered that the heuristic misses).
+
+### 4d. v2 cross-check (iteration 11) — the T-learner question, resolved
+
+Same ablation on the disjoint **1000-mandate v2 batch** (3× the per-cause sample):
+
+| config | v2 recovery | v2 lift | primary lift |
+|---|---:|---:|---:|
+| naive static-retry | 54.80 % | +0.00 | +0.00 |
+| heuristic + heuristic | 56.69 % | +1.89 | +9.04 |
+| survival + heuristic | 62.92 % | +8.12 | +18.05 |
+| heuristic + T-learner | 52.48 % | **−2.32** | +4.66 |
+| **survival + T-learner *(shipped)*** | **63.45 %** | **+8.65** | +16.33 |
+
+**On v2 the shipped `survival + T-learner` is the best of the five** — it edges
+`survival + heuristic` by +0.5 pp, the reverse of the primary batch's −1.7 pp. The two
+batches disagree on the *sign* of a sub-2 pp difference; the larger, more trustworthy batch
+favours the shipped config. **Conclusion: keep `survival + T-learner` as the shipped
+default.** The 9c `PARTIAL_CHARGE` bug was the real defect; once fixed, the two intervention
+advisors are statistically indistinguishable and the T-learner is *not* net-negative.
+
+Two things v2 makes clear that the 300-batch could not:
+- **The T-learner needs the survival retry model + orchestration to be net-positive.**
+  `heuristic retry + T-learner` scores −2.32 pp — *below the naive ladder*. The uplift
+  ranking only pays off inside the full round-aware loop.
+- **Lift is baseline-sensitive; absolute recovery is not.** The agent recovers ~63.5 % on
+  *both* batches (primary 63.51 %, v2 63.45 %, v2 95 % CI [59.5 %, 67.3 %]), but v2's
+  static-retry baseline is 54.8 % vs the primary's 47.2 %, so v2 lift is +8.65 pp vs primary
+  +16.33 pp. The stable, honest number is the **absolute recovery rate**; the lift depends
+  on which baseline draw the batch happens to contain.
 
 ## 5. Known limitations
 

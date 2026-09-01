@@ -221,23 +221,82 @@ def ablation_eval(events: list[FailureEvent], labels: dict) -> dict:
     return {"baseline_static_recovery_rate": round(naive_rate, 4), "table": rows}
 
 
+# --------------------------------------------------------------------------- by-cause
+def by_cause_eval(events: list[FailureEvent], labels: dict) -> dict:
+    """Per-cause recovery for the shipped agent: n, rate, 95% Wilson CI, lift vs the
+    per-cause static-retry baseline. Uses count (not money) weighting so the Wilson CI is
+    exact."""
+    from mandatemend.batch.baselines import static_retry
+    from mandatemend.batch.run_batch import wilson_interval
+
+    init_engine("sqlite://", create=True)
+    ledger.reset_cache()
+    agent = Agent.default(gateway=SimulatedGateway(labels), audit_enabled=False)
+    agent.warm(events)
+    pc: dict[str, dict] = {}
+    for ev in events:
+        lab = labels[ev.mandate_id]
+        c = lab["true_cause"]
+        d = pc.setdefault(c, {"n": 0, "rec": 0, "base": 0})
+        d["n"] += 1
+        d["rec"] += 1 if agent.recover(ev).recovered else 0
+        d["base"] += 1 if static_retry(lab["outcomes"], ev.amount_paise).recovered else 0
+    rows = []
+    for c, d in sorted(pc.items()):
+        rate = d["rec"] / d["n"]
+        base = d["base"] / d["n"]
+        lo, hi = wilson_interval(d["rec"], d["n"])
+        rows.append(
+            {
+                "cause": c,
+                "n": d["n"],
+                "recovery_rate": round(rate, 4),
+                "wilson_ci": [lo, hi],
+                "static_retry_rate": round(base, 4),
+                "lift_vs_static_pp": round(rate - base, 4),
+            }
+        )
+    return {"table": rows}
+
+
 # --------------------------------------------------------------------------- driver
-def run_all(*, do_sequencing: bool = True, do_calibration: bool = True, do_ablation: bool = True) -> dict:
-    events, labels = _load_frozen()
+def run_all(
+    *,
+    do_sequencing: bool = True,
+    do_calibration: bool = True,
+    do_ablation: bool = True,
+    do_by_cause: bool = False,
+    batch: str = "primary",
+) -> dict:
+    events, labels = _load_frozen(batch)
     retry_model = RetryTimingModel.load()
     uplift_model = UpliftModel.load()
-    out: dict = {}
+    out: dict = {"batch": batch}
     if do_sequencing:
         out["sequencing"] = sequencing_eval(retry_model, events, labels)
     if do_calibration:
         out["calibration"] = calibration_eval(retry_model, uplift_model, events, labels)
     if do_ablation:
         out["ablation"] = ablation_eval(events, labels)
+    if do_by_cause:
+        out["by_cause"] = by_cause_eval(events, labels)
     return out
 
 
 def format_report(out: dict) -> str:
-    lines: list[str] = ["MandateMend model-strength evaluation", ""]
+    lines: list[str] = [f"MandateMend model-strength evaluation  (batch={out.get('batch', 'primary')})", ""]
+    if "by_cause" in out:
+        lines += [
+            "BY CAUSE  (shipped agent; count-weighted recovery, 95% Wilson CI, lift vs static-retry)",
+            f"  {'cause':<20s} {'n':>5s} {'recovery':>10s} {'wilson 95% CI':>20s} {'lift pp':>9s}",
+        ]
+        for r in out["by_cause"]["table"]:
+            lo, hi = r["wilson_ci"]
+            lines.append(
+                f"  {r['cause']:<20s} {r['n']:>5d} {r['recovery_rate'] * 100:9.2f}% "
+                f"  [{lo * 100:5.1f}, {hi * 100:5.1f}] {r['lift_vs_static_pp'] * 100:+8.2f}"
+            )
+        lines.append("")
     if "sequencing" in out:
         s = out["sequencing"]
         lines += [
@@ -266,7 +325,7 @@ def format_report(out: dict) -> str:
             lines.append("")
     if "ablation" in out:
         lines += [
-            "ABLATION  (frozen 300-batch, recovery rate / lift vs static-retry)",
+            f"ABLATION  (batch={out.get('batch', 'primary')}, recovery rate / lift vs static-retry)",
             f"  {'config':<44s} {'recovery':>9s} {'lift pp':>9s}",
         ]
         for r in out["ablation"]["table"]:

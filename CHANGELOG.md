@@ -5,6 +5,41 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-02 — iteration 11 (work-stream D): small-n honesty + the v2 cross-check batch
+
+**11a — per-cause Wilson score intervals.** `wilson_interval(k, n)` in `batch/run_batch.py`;
+`Scorecard.per_cause` entries carry `rate_ci`; `format_scorecard` + the console overview
+show the 95 % interval. Small-n buckets now read honestly: `MANDATE_PAUSED` 22.2 % →
+[9.0 %, 45.2 %], `LIMIT_EXCEEDED` 47.8 % → [29.2 %, 67.0 %]. No headline change (iteration
+12 line).
+
+**11b — `data/heldout_batch_v2.frozen.json` (1000 mandates).** Same deterministic generator,
+seed 20260901, index range `[1_100_000, 1_101_000)` — disjoint from training and the primary
+held-out range (0 overlap verified). Written by `python data/generator.py --freeze-v2`
+(refuses to overwrite, chmod read-only, SHA in `FROZEN_SHA256.txt`, CI checks all four
+frozen files). The primary 300-batch is untouched and stays THE headline metric.
+`_write_json` switched to `write_bytes` so the on-disk file is byte-identical to the hashed
+payload on every OS (Windows `write_text` was translating newlines → SHA mismatch).
+
+**11c — `score --batch v2`, `eval --by-cause`, and the T-learner question resolved.**
+  * `mandatemend score --batch v2` (1000 mandates): recovery **63.45 %** (95 % CI
+    [59.5 %, 67.3 %]) — essentially identical to the primary 63.51 %. **0 compliance
+    violations at 1000 mandates.** Lift is only **+8.65 pp** though, because the v2
+    static-retry baseline (54.8 %) is higher than the primary's (47.2 %) — same agent, easier
+    baseline draw. Written to `logs/score_v2.json`, *not* the iteration log (v2 is a
+    cross-check, not a tracked iteration).
+  * `mandatemend eval --by-cause [--batch v2]` — per-cause n / recovery / Wilson CI / lift.
+  * **Ablation re-run on v2 — the shipped `survival + T-learner` is the best of the five
+    there (63.45 %, +0.5 pp over `survival + heuristic`), the reverse of the primary batch's
+    −1.7 pp.** Two sub-2 pp results with opposite signs; the larger batch favours the shipped
+    config. **Decision: keep `survival + T-learner`.** The iteration-9c `PARTIAL_CHARGE` bug
+    was the real defect — once fixed, the two intervention advisors are statistically
+    indistinguishable, and `heuristic retry + T-learner` scoring −2.32 pp on v2 (below naive)
+    shows the T-learner only pays off inside the full survival-retry + round-aware loop.
+    Documented in `docs/MODELS.md §4d`.
+  * Honest takeaway now in the docs: **absolute recovery (~63.5 % on both batches) is the
+    stable number; lift is baseline-sensitive** (+16.3 pp primary vs +8.7 pp v2).
+
 ### 2026-09-02 — iteration 9c: the ablation caught a real bug (PARTIAL_CHARGE poisons retry-first)
 
 Following up the iteration-9b ablation finding (shipped `survival + T-learner` at 61.42 %,

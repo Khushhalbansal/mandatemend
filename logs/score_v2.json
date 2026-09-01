@@ -1,0 +1,125 @@
+{
+  "iteration": 13,
+  "ts": "2026-09-01T19:34:54.733686Z",
+  "git_sha": "27aca4e",
+  "note": "[batch=v2] iter11c v2 cross-check | audit_chain: chain OK across 7544 entries",
+  "tests_passed": 0,
+  "tests_total": 0,
+  "lint_errors": 0,
+  "type_errors": 0,
+  "batch_size": 1000,
+  "amount_at_risk_paise": 139615000,
+  "recovered_paise": 88591660,
+  "batch_recovery_rate": 0.6345,
+  "recovery_rate_ci": [
+    0.5953,
+    0.6731
+  ],
+  "baseline_lift_ci": [
+    0.0447,
+    0.1311
+  ],
+  "baseline_static_recovery_rate": 0.548,
+  "baseline_email_only_recovery_rate": 0.1731,
+  "baseline_single_retry_recovery_rate": 0.2884,
+  "baseline_lift": 0.0865,
+  "retries_used_total": 1045,
+  "recoveries_per_retry": 0.6517,
+  "unnecessary_contacts": 623,
+  "escalated_count": 319,
+  "harm_cost_paise": 93450,
+  "compliance_violations": 0,
+  "per_cause": [
+    {
+      "cause": "BANK_DOWNTIME",
+      "n": 166,
+      "recovered": 157,
+      "rate": 0.9458,
+      "rate_ci": [
+        0.9002,
+        0.9712
+      ],
+      "amt_risk_paise": 24483400,
+      "amt_recovered_paise": 23359300,
+      "escalated": 9
+    },
+    {
+      "cause": "INSUFFICIENT_FUNDS",
+      "n": 434,
+      "recovered": 295,
+      "rate": 0.6797,
+      "rate_ci": [
+        0.6344,
+        0.7219
+      ],
+      "amt_risk_paise": 54801600,
+      "amt_recovered_paise": 30338180,
+      "escalated": 139
+    },
+    {
+      "cause": "LIMIT_EXCEEDED",
+      "n": 82,
+      "recovered": 45,
+      "rate": 0.5488,
+      "rate_ci": [
+        0.4413,
+        0.6519
+      ],
+      "amt_risk_paise": 11276800,
+      "amt_recovered_paise": 5015420,
+      "escalated": 37
+    },
+    {
+      "cause": "MANDATE_EXPIRED",
+      "n": 35,
+      "recovered": 11,
+      "rate": 0.3143,
+      "rate_ci": [
+        0.1855,
+        0.4798
+      ],
+      "amt_risk_paise": 5601500,
+      "amt_recovered_paise": 2048900,
+      "escalated": 24
+    },
+    {
+      "cause": "MANDATE_PAUSED",
+      "n": 62,
+      "recovered": 21,
+      "rate": 0.3387,
+      "rate_ci": [
+        0.2334,
+        0.4628
+      ],
+      "amt_risk_paise": 9593800,
+      "amt_recovered_paise": 3582900,
+      "escalated": 41
+    },
+    {
+      "cause": "SUSPECTED_CHURN",
+      "n": 36,
+      "recovered": 11,
+      "rate": 0.3056,
+      "rate_ci": [
+        0.18,
+        0.4686
+      ],
+      "amt_risk_paise": 5546400,
+      "amt_recovered_paise": 1921060,
+      "escalated": 25
+    },
+    {
+      "cause": "TECH_DECLINE",
+      "n": 185,
+      "recovered": 141,
+      "rate": 0.7622,
+      "rate_ci": [
+        0.6959,
+        0.8178
+      ],
+      "amt_risk_paise": 28311500,
+      "amt_recovered_paise": 22325900,
+      "escalated": 44
+    }
+  ]
+}

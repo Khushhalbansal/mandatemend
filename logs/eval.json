@@ -1,4 +1,203 @@
 {
+  "batch": "primary",
+  "sequencing": {
+    "n_mandates_with_a_winning_retry": 199,
+    "model_top3_ordered_capture_rate": 0.794,
+    "fixed_ladder_24_72_168_capture_rate": 0.7739,
+    "model_top1_only_capture_rate": 0.4372,
+    "model_minus_ladder_pp": 0.0201,
+    "schedule_prob_calibration": {
+      "mean_predicted_recovery": 0.7164,
+      "mean_observed_recovery": 0.794
+    }
+  },
+  "calibration": {
+    "retry_timing": {
+      "ece": 0.0632,
+      "mce": 0.2041,
+      "n": 2100,
+      "reliability": [
+        {
+          "bin": [
+            0.0,
+            0.1
+          ],
+          "n": 603,
+          "mean_predicted": 0.0303,
+          "observed_frequency": 0.0614
+        },
+        {
+          "bin": [
+            0.1,
+            0.2
+          ],
+          "n": 336,
+          "mean_predicted": 0.1489,
+          "observed_frequency": 0.2768
+        },
+        {
+          "bin": [
+            0.2,
+            0.3
+          ],
+          "n": 498,
+          "mean_predicted": 0.251,
+          "observed_frequency": 0.2932
+        },
+        {
+          "bin": [
+            0.3,
+            0.4
+          ],
+          "n": 313,
+          "mean_predicted": 0.3489,
+          "observed_frequency": 0.2907
+        },
+        {
+          "bin": [
+            0.4,
+            0.5
+          ],
+          "n": 134,
+          "mean_predicted": 0.4384,
+          "observed_frequency": 0.3806
+        },
+        {
+          "bin": [
+            0.5,
+            0.6
+          ],
+          "n": 44,
+          "mean_predicted": 0.5438,
+          "observed_frequency": 0.3864
+        },
+        {
+          "bin": [
+            0.6,
+            0.7
+          ],
+          "n": 54,
+          "mean_predicted": 0.6549,
+          "observed_frequency": 0.5741
+        },
+        {
+          "bin": [
+            0.7,
+            0.8
+          ],
+          "n": 57,
+          "mean_predicted": 0.7453,
+          "observed_frequency": 0.6667
+        },
+        {
+          "bin": [
+            0.8,
+            0.9
+          ],
+          "n": 36,
+          "mean_predicted": 0.8385,
+          "observed_frequency": 0.75
+        },
+        {
+          "bin": [
+            0.9,
+            1.0
+          ],
+          "n": 25,
+          "mean_predicted": 0.9241,
+          "observed_frequency": 0.72
+        }
+      ]
+    },
+    "uplift": {
+      "ece": 0.0459,
+      "mce": 0.3358,
+      "n": 2100,
+      "reliability": [
+        {
+          "bin": [
+            0.0,
+            0.1
+          ],
+          "n": 628,
+          "mean_predicted": 0.0323,
+          "observed_frequency": 0.0525
+        },
+        {
+          "bin": [
+            0.1,
+            0.2
+          ],
+          "n": 310,
+          "mean_predicted": 0.1509,
+          "observed_frequency": 0.1935
+        },
+        {
+          "bin": [
+            0.2,
+            0.3
+          ],
+          "n": 391,
+          "mean_predicted": 0.2469,
+          "observed_frequency": 0.2225
+        },
+        {
+          "bin": [
+            0.3,
+            0.4
+          ],
+          "n": 298,
+          "mean_predicted": 0.3473,
+          "observed_frequency": 0.2852
+        },
+        {
+          "bin": [
+            0.4,
+            0.5
+          ],
+          "n": 241,
+          "mean_predicted": 0.442,
+          "observed_frequency": 0.3693
+        },
+        {
+          "bin": [
+            0.5,
+            0.6
+          ],
+          "n": 164,
+          "mean_predicted": 0.5455,
+          "observed_frequency": 0.4451
+        },
+        {
+          "bin": [
+            0.6,
+            0.7
+          ],
+          "n": 56,
+          "mean_predicted": 0.6349,
+          "observed_frequency": 0.5
+        },
+        {
+          "bin": [
+            0.7,
+            0.8
+          ],
+          "n": 10,
+          "mean_predicted": 0.7218,
+          "observed_frequency": 0.7
+        },
+        {
+          "bin": [
+            0.8,
+            0.9
+          ],
+          "n": 2,
+          "mean_predicted": 0.8358,
+          "observed_frequency": 0.5
+        }
+      ]
+    }
+  },
   "ablation": {
     "baseline_static_recovery_rate": 0.4718,
     "table": [
@@ -26,6 +225,87 @@
         "config": "survival_retry + t_learner_uplift (shipped)",
         "recovery_rate": 0.6351,
         "lift_vs_static_pp": 0.1633
+      }
+    ]
+  },
+  "by_cause": {
+    "table": [
+      {
+        "cause": "BANK_DOWNTIME",
+        "n": 38,
+        "recovery_rate": 0.8947,
+        "wilson_ci": [
+          0.7587,
+          0.9583
+        ],
+        "static_retry_rate": 0.8421,
+        "lift_vs_static_pp": 0.0526
+      },
+      {
+        "cause": "INSUFFICIENT_FUNDS",
+        "n": 134,
+        "recovery_rate": 0.7164,
+        "wilson_ci": [
+          0.6349,
+          0.7859
+        ],
+        "static_retry_rate": 0.5224,
+        "lift_vs_static_pp": 0.194
+      },
+      {
+        "cause": "LIMIT_EXCEEDED",
+        "n": 23,
+        "recovery_rate": 0.4783,
+        "wilson_ci": [
+          0.2924,
+          0.6704
+        ],
+        "static_retry_rate": 0.0435,
+        "lift_vs_static_pp": 0.4348
+      },
+      {
+        "cause": "MANDATE_EXPIRED",
+        "n": 14,
+        "recovery_rate": 0.3571,
+        "wilson_ci": [
+          0.1634,
+          0.6124
+        ],
+        "static_retry_rate": 0.0,
+        "lift_vs_static_pp": 0.3571
+      },
+      {
+        "cause": "MANDATE_PAUSED",
+        "n": 18,
+        "recovery_rate": 0.2222,
+        "wilson_ci": [
+          0.09,
+          0.4522
+        ],
+        "static_retry_rate": 0.0,
+        "lift_vs_static_pp": 0.2222
+      },
+      {
+        "cause": "SUSPECTED_CHURN",
+        "n": 14,
+        "recovery_rate": 0.5,
+        "wilson_ci": [
+          0.268,
+          0.732
+        ],
+        "static_retry_rate": 0.5714,
+        "lift_vs_static_pp": -0.0714
+      },
+      {
+        "cause": "TECH_DECLINE",
+        "n": 59,
+        "recovery_rate": 0.8644,
+        "wilson_ci": [
+          0.7546,
+          0.9297
+        ],
+        "static_retry_rate": 0.7288,
+        "lift_vs_static_pp": 0.1356
       }
     ]
   }
