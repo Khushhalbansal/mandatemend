@@ -52,7 +52,7 @@ def build() -> BatchView:
     agent = Agent.default(gateway=SimulatedGateway(labels), audit_enabled=True)
     agent.warm(events)
     from mandatemend.batch.baselines import BASELINES
-    from mandatemend.batch.run_batch import _bootstrap_ci
+    from mandatemend.batch.run_batch import _bootstrap_ci, wilson_interval
 
     static_fn = BASELINES["static_retry"]
     rows: list[Row] = []
@@ -127,6 +127,7 @@ def build() -> BatchView:
                 "n": d["n"],
                 "recovered": d["rec"],
                 "rate": d["rec"] / d["n"] if d["n"] else 0.0,
+                "rate_ci": list(wilson_interval(d["rec"], d["n"])),
                 "amt_risk": d["amt_risk"],
                 "amt_rec": d["amt_rec"],
                 "escalated": d["esc"],

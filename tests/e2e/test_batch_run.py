@@ -2,9 +2,31 @@
 
 import pytest
 
-from mandatemend.batch.run_batch import run
+from mandatemend.batch.run_batch import run, wilson_interval
 
 pytestmark = pytest.mark.e2e
+
+
+def test_wilson_interval_math():
+    # n=0 -> degenerate
+    assert wilson_interval(0, 0) == (0.0, 0.0)
+    # symmetric-ish, brackets the point estimate, stays in [0,1]
+    lo, hi = wilson_interval(5, 10)
+    assert 0.0 <= lo < 0.5 < hi <= 1.0
+    # small n -> wide; large n -> narrow, for the same proportion
+    w_small = wilson_interval(4, 18)  # ~MANDATE_PAUSED bucket
+    w_large = wilson_interval(400, 1800)
+    assert (w_small[1] - w_small[0]) > (w_large[1] - w_large[0]) + 0.1
+    # a 0-of-n bucket has lo == 0 but hi > 0 (never claims certainty)
+    z_lo, z_hi = wilson_interval(0, 14)
+    assert z_lo == 0.0 and z_hi > 0.0
+
+
+def test_per_cause_carries_a_wilson_ci(scorecard):
+    assert scorecard.per_cause
+    for c in scorecard.per_cause:
+        lo, hi = c["rate_ci"]
+        assert 0.0 <= lo <= c["rate"] + 1e-4 and c["rate"] - 1e-4 <= hi <= 1.0
 
 
 @pytest.fixture(scope="module")

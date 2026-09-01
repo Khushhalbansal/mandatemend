@@ -64,6 +64,7 @@ NPCI 24h pre-debit-notice rule; the agent honours it on every retry.</p>
 <h2>By failure cause</h2>
 <table>
   <tr><th>cause</th><th class="num">n</th><th class="num">recovered</th><th class="num">rate</th>
+      <th class="num">95% Wilson CI</th>
       <th class="num">Rs recovered</th><th class="num">Rs at risk</th><th class="num">escalated</th></tr>
   {% for c in v.per_cause %}
   <tr>
@@ -71,6 +72,7 @@ NPCI 24h pre-debit-notice rule; the agent honours it on every retry.</p>
     <td class="num">{{ c.n }}</td>
     <td class="num">{{ c.recovered }}</td>
     <td class="num">{{ c.rate | pct }}</td>
+    <td class="num muted">{% if c.rate_ci %}{{ c.rate_ci[0] | pct }}&ndash;{{ c.rate_ci[1] | pct }}{% endif %}</td>
     <td class="num">{{ c.amt_rec | rupees }}</td>
     <td class="num">{{ c.amt_risk | rupees }}</td>
     <td class="num">{{ c.escalated }}</td>

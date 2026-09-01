@@ -56,6 +56,20 @@ def _bootstrap_ci(
     )
 
 
+def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score interval for a binomial proportion k/n. Unlike the normal
+    approximation it stays inside [0, 1] and is sensible at small n — which is the point:
+    the per-cause buckets (MANDATE_PAUSED n≈18, SUSPECTED_CHURN n≈14) must show honestly
+    wide bounds, not a bare point estimate."""
+    if n <= 0:
+        return (0.0, 0.0)
+    p = k / n
+    denom = 1.0 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    half = (z / denom) * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5)
+    return (round(max(0.0, center - half), 4), round(min(1.0, center + half), 4))
+
+
 def run(*, iteration: int = 0, note: str = "", git_sha: str | None = None) -> Scorecard:
     events, labels = _load_frozen()
 
@@ -144,6 +158,7 @@ def run(*, iteration: int = 0, note: str = "", git_sha: str | None = None) -> Sc
                 "n": v["n"],
                 "recovered": v["rec"],
                 "rate": round(v["rec"] / v["n"], 4) if v["n"] else 0.0,
+                "rate_ci": list(wilson_interval(v["rec"], v["n"])),
                 "amt_risk_paise": v["amt_risk"],
                 "amt_recovered_paise": v["amt_rec"],
                 "escalated": v["esc"],
@@ -175,11 +190,12 @@ def format_scorecard(sc: Scorecard) -> str:
         f"  COMPLIANCE VIOLATIONS      {sc.compliance_violations}",
     ]
     if sc.per_cause:
-        lines.append("  per cause:")
+        lines.append("  per cause (rate with 95% Wilson CI):")
         for c in sc.per_cause:
+            lo, hi = c.get("rate_ci", [c["rate"], c["rate"]])
             lines.append(
                 f"    {c['cause']:<20} n={c['n']:<4} rec={c['recovered']:<4} "
-                f"{pct(c['rate']):>7}  esc={c['escalated']}"
+                f"{pct(c['rate']):>7}  [{pct(lo)}, {pct(hi)}]  esc={c['escalated']}"
             )
     if sc.compliance_violations:
         lines.append("  >>> STOP-THE-LINE: compliance_violations > 0 (CLAUDE.md §3.1) <<<")
