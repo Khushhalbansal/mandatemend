@@ -43,8 +43,8 @@ mandatemend score` gives the same result on any machine. CIs are a seeded, manda
 regression at iter 5) is in [`logs/iterations.jsonl`](logs/iterations.jsonl).
 
 Docs: **[ARCHITECTURE](docs/ARCHITECTURE.md)** · **[MODELS](docs/MODELS.md)** ·
-**[RESEARCH / track choice](docs/RESEARCH.md)** · **[data generation](data/GENERATION_NOTES.md)** ·
-**[CHANGELOG — what broke](CHANGELOG.md)**
+**[PITCH (5-min beat sheet)](docs/PITCH.md)** · **[RESEARCH / track choice](docs/RESEARCH.md)** ·
+**[data generation](data/GENERATION_NOTES.md)** · **[CHANGELOG — what broke](CHANGELOG.md)**
 
 ## Architecture (trust boundary)
 
