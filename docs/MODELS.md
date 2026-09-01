@@ -244,6 +244,32 @@ outbound contact (I4 quiet hours, I5 weekly cap) and never as a charge (I1, I2),
 `check_resolution` on all 1000 v2 mandates. It lifts exactly the weakest buckets, which the
 architecture always intended but the primary batch could not demonstrate.
 
+### 4f. Interpretability (iteration 12d)
+
+**Global — permutation importance** (`mandatemend train` → `logs/model_metrics.json`;
+HistGBM has no `feature_importances_`, so this is the AUC drop when a feature is shuffled on
+the held-out slice). Top drivers:
+
+| retry-timing | ↓AUC | | uplift `RETRY_ONLY` | ↓AUC | | uplift `WHATSAPP_UPI_LINK` | ↓AUC |
+|---|---:|---|---|---:|---|---|---:|
+| `delay_hours` | .062 | | `cause_TECH_DECLINE` | .106 | | `days_since_last_success` | .081 |
+| `cause_BANK_DOWNTIME` | .024 | | `consecutive_failures` | .046 | | `consecutive_failures` | .045 |
+| `consecutive_failures` | .023 | | `cause_BANK_DOWNTIME` | .025 | | `hour_of_day` | .045 |
+| `cause_INSUFFICIENT_FUNDS` | .018 | | `days_since_last_success` | .017 | | `tenure_months` | .031 |
+
+Each is defensible: retry-timing rides on *when* (`delay_hours`) plus the cause and the
+recency signals; `RETRY_ONLY`'s uplift is driven by `TECH_DECLINE` (transient → another
+attempt works); the WhatsApp arm keys on the churn-risk features (`days_since_last_success`,
+`consecutive_failures`, tenure) — it is the "reach a wavering customer" arm.
+
+**Local — per-decision attribution.** `UpliftModel.explain(event, diag, arm)` reports, for
+the arm the model chose, how `p_recover` moves when each feature is reset to its training
+mean (leave-one-feature-out; signed, ranked; **no SHAP dependency**). Surfaced in
+`mandatemend demo <id>` and in the evidence pack (`/evidence/<id>.json →
+uplift_attribution`). Example (mandate 5, `LIMIT_EXCEEDED` → `METHOD_SWITCH`):
+`amount_to_cap_ratio = 1.63 → +0.065 on p_recover` — the amount exceeds the mandate's own
+cap, so switching payment method is the move.
+
 ## 5. Known limitations
 
 - Synthetic training data cannot perfectly preserve real behavioural patterns (arXiv

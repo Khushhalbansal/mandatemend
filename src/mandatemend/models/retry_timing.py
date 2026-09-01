@@ -121,9 +121,31 @@ class RetryTimingModel:
         metrics = cls._time_aware_metrics(y_arr[cut:], p_val, t_arr[cut:])
         metrics["n_person_periods"] = int(n)
         metrics["n_train_rows"] = int(cut)
+        metrics["global_importance"] = cls._global_importance(
+            clf, X_arr[cut:], y_arr[cut:], [*FEATURE_NAMES, "delay_hours"]
+        )
 
         model = cls(clf=clf, feature_names=[*FEATURE_NAMES, "delay_hours"])
         return model, metrics
+
+    @staticmethod
+    def _global_importance(
+        clf: HistGradientBoostingClassifier,
+        x: np.ndarray,
+        y: np.ndarray,
+        names: list[str],
+    ) -> list[dict]:
+        """Permutation importance on the held-out slice (HistGBM has no
+        `feature_importances_`). Top 8 by AUC drop when the feature is shuffled."""
+        if len(np.unique(y)) < 2:
+            return []
+        from sklearn.inspection import permutation_importance
+
+        r = permutation_importance(clf, x, y, n_repeats=5, random_state=0, scoring="roc_auc")
+        ranked = sorted(
+            zip(names, r.importances_mean, strict=True), key=lambda t: -abs(t[1])
+        )
+        return [{"feature": f, "importance": round(float(v), 4)} for f, v in ranked[:8]]
 
     @staticmethod
     def _time_aware_metrics(y: np.ndarray, p: np.ndarray, t: np.ndarray) -> dict:

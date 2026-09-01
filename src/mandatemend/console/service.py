@@ -162,5 +162,27 @@ def evidence_pack(mandate_id: str) -> dict | None:
         "true_cause": r.true_cause,
         "resolution": r.resolution.model_dump(mode="json"),
         "compliance_violations": r.violations,
+        "uplift_attribution": _uplift_attribution(r.event),
         "audit_trail": ledger.entries_for(mandate_id),
+    }
+
+
+def _uplift_attribution(event: FailureEvent) -> dict | None:
+    """Local feature attribution for the uplift model's top-ranked arm on this mandate."""
+    from mandatemend.diagnosis.base import get_diagnoser
+    from mandatemend.models.uplift import UpliftModel
+
+    try:
+        model = UpliftModel.load()
+    except Exception:  # noqa: BLE001 - artifact missing / unreadable -> just omit the section
+        return None
+    diag = get_diagnoser().diagnose(event)
+    ranked = model.rank(event, diag)
+    arm, p_recover, uplift = ranked[0]
+    return {
+        "arm": arm.value,
+        "p_recover": round(p_recover, 4),
+        "uplift_vs_control": round(uplift, 4),
+        "top_features": model.explain(event, diag, arm),
+        "method": "leave-one-feature-out vs the training-set mean (no SHAP dependency)",
     }

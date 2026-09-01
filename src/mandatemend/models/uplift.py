@@ -13,7 +13,7 @@ against a control is the step up this brings (research file: arXiv 2412.09232, 2
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -69,6 +69,7 @@ ARMS: list[InterventionType] = [
 class UpliftModel:
     arm_models: dict[str, HistGradientBoostingClassifier]
     feature_names: list[str]
+    feature_baseline: list[float] = field(default_factory=list)  # per-feature training mean
 
     @classmethod
     def train(cls, training_json: Path) -> tuple[UpliftModel, dict]:
@@ -112,13 +113,47 @@ class UpliftModel:
             clf.fit(xm, ym, sample_weight=wm)
             arm_models[arm_key] = clf
 
-        model = cls(arm_models=arm_models, feature_names=list(FEATURE_NAMES))
+        all_x = [x for rows in buckets.values() for (x, _y, _w) in rows]
+        baseline = (
+            np.asarray(all_x, dtype=float).mean(axis=0).tolist()
+            if all_x
+            else [0.0] * len(FEATURE_NAMES)
+        )
+        model = cls(
+            arm_models=arm_models,
+            feature_names=list(FEATURE_NAMES),
+            feature_baseline=baseline,
+        )
         metrics = {
             "arm_counts": counts,
             "arm_pos_rate": {k: round(v, 3) for k, v in pos_rate.items()},
             "arms_modelled": sorted(arm_models),
+            "global_importance": model._global_importance(buckets),
         }
         return model, metrics
+
+    def _global_importance(self, buckets: dict) -> dict:
+        """Permutation importance (HistGBM has no `feature_importances_`) for the two arms
+        with the most data — a global 'which features drive the recovery estimate' view."""
+        from sklearn.inspection import permutation_importance
+
+        out: dict[str, list] = {}
+        for arm in ("RETRY_ONLY", "WHATSAPP_UPI_LINK"):
+            clf = self.arm_models.get(arm)
+            rows = buckets.get(arm, [])
+            if clf is None or len(rows) < 60:
+                continue
+            x = np.array([r[0] for r in rows], dtype=float)
+            y = np.array([r[1] for r in rows], dtype=int)
+            r = permutation_importance(clf, x, y, n_repeats=5, random_state=0, scoring="roc_auc")
+            ranked = sorted(
+                zip(FEATURE_NAMES, r.importances_mean, strict=True),
+                key=lambda t: -abs(t[1]),
+            )
+            out[arm] = [
+                {"feature": f, "importance": round(float(v), 4)} for f, v in ranked[:8]
+            ]
+        return out
 
     # ---- inference ---------------------------------------------------
     def _p(self, arm: str, x: np.ndarray) -> float:
@@ -163,13 +198,46 @@ class UpliftModel:
             out.append(ranked)
         return out
 
+    # ---- interpretability ---------------------------------------
+    def explain(
+        self, event: FailureEvent, diag: TypedDiagnosis, arm: InterventionType, top: int = 6
+    ) -> list[dict]:
+        """Per-decision local attribution for `arm`'s `p_recover(x)`: for each feature,
+        how much does the estimate move when that feature is reset to its training mean?
+        Signed, sorted by magnitude. Model-agnostic, deterministic, no extra dependency."""
+        clf = self.arm_models.get(arm.value)
+        if clf is None or not self.feature_baseline:
+            return []
+        x = np.array([[feature_row(event, diag)[n] for n in FEATURE_NAMES]], dtype=float)
+        p_full = float(clf.predict_proba(x)[:, 1][0])
+        contribs: list[dict] = []
+        for i, name in enumerate(FEATURE_NAMES):
+            if x[0, i] == self.feature_baseline[i]:
+                continue
+            xp = x.copy()
+            xp[0, i] = self.feature_baseline[i]
+            delta = p_full - float(clf.predict_proba(xp)[:, 1][0])
+            if abs(delta) > 1e-4:
+                contribs.append(
+                    {"feature": name, "value": round(float(x[0, i]), 3), "delta": round(delta, 4)}
+                )
+        contribs.sort(key=lambda c: -abs(c["delta"]))
+        return contribs[:top]
+
     # ---- persistence ----------------------------------------------
     def save(self, path: Path | None = None) -> Path:
         import joblib
 
         p = path or ARTIFACT
         p.parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump({"arm_models": self.arm_models, "feature_names": self.feature_names}, p)
+        joblib.dump(
+            {
+                "arm_models": self.arm_models,
+                "feature_names": self.feature_names,
+                "feature_baseline": self.feature_baseline,
+            },
+            p,
+        )
         return p
 
     @classmethod
@@ -177,4 +245,8 @@ class UpliftModel:
         import joblib
 
         d = joblib.load(path or ARTIFACT)
-        return cls(arm_models=d["arm_models"], feature_names=d["feature_names"])
+        return cls(
+            arm_models=d["arm_models"],
+            feature_names=d["feature_names"],
+            feature_baseline=d.get("feature_baseline", []),
+        )

@@ -159,9 +159,30 @@ def cmd_demo(args: argparse.Namespace) -> int:
         f"retries={res.retries_used}  contacts={res.contacts_made}  "
         f"terminal={res.terminal_action.value}"
     )
+
+    _print_uplift_attribution(agent, ev)
+
     ok, msg = ledger.verify_chain()
     print(f"  audit chain: {msg}")
     return 0
+
+
+def _print_uplift_attribution(agent, ev) -> None:
+    """Local feature attribution for the first non-retry arm the uplift model steered to."""
+    from mandatemend.models.advisors import TLearnerUpliftAdvisor
+
+    adv = agent.intervention_advisor
+    if not isinstance(adv, TLearnerUpliftAdvisor):
+        return
+    diag = agent.diagnoser.diagnose(ev)
+    ranked = adv.model.rank(ev, diag)
+    top_arm = ranked[0][0]
+    contribs = adv.model.explain(ev, diag, top_arm)
+    if not contribs:
+        return
+    print(f"  why arm {top_arm.value} (p_recover={ranked[0][1]:.2f}, uplift={ranked[0][2]:+.2f}):")
+    for c in contribs:
+        print(f"      {c['feature']:24s} = {c['value']:<10g} -> {c['delta']:+.3f} on p_recover")
 
 
 def cmd_serve(args: argparse.Namespace) -> int:

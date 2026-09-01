@@ -5,6 +5,24 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-02 — iteration 12d (work-stream G): interpretability
+
+- **Global — permutation importance** for the retry-timing model and the two data-heavy
+  uplift arms (`RETRY_ONLY`, `WHATSAPP_UPI_LINK`), written by `mandatemend train` to
+  `logs/model_metrics.json` and tabulated in `docs/MODELS.md §4f`. (HistGBM has no
+  `feature_importances_`, so it's the AUC drop when a feature is shuffled on the held-out
+  slice.) `delay_hours` dominates retry-timing; `cause_TECH_DECLINE` drives `RETRY_ONLY`'s
+  uplift; the WhatsApp arm keys on the churn-risk features — all defensible.
+- **Local — per-decision attribution.** `UpliftModel.explain(event, diag, arm)`: for the
+  arm the model chose, how `p_recover` moves when each feature is reset to its training mean
+  (leave-one-feature-out, signed, ranked — **no SHAP dependency**, `feature_baseline`
+  persisted in the artifact). Surfaced in `mandatemend demo <id>` and the evidence pack
+  (`uplift_attribution`). e.g. mandate 5 (`LIMIT_EXCEEDED` → `METHOD_SWITCH`):
+  `amount_to_cap_ratio = 1.63 → +0.065 on p_recover`.
+- Models: retry-timing artifact byte-identical (metrics-only change); uplift artifact gains
+  `feature_baseline`. Headline unchanged (iteration 16: 63.51 % / +16.33 pp / 0 violations /
+  112 tests).
+
 ### 2026-09-02 — iteration 12c (work-stream E2): re-auth outcomes on v2, dead-mandate recovery
 
 - `data/generator.py --freeze-reauth-v2` writes **`data/heldout_reauth_v2.frozen.json`** — a

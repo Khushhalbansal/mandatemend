@@ -115,3 +115,25 @@ def test_uplift_save_load_roundtrip(models, tmp_path):
     p = up.save(tmp_path / "up.joblib")
     reloaded = UpliftModel.load(p)
     assert reloaded.rank(make_event(), _diag()) == up.rank(make_event(), _diag())
+    assert reloaded.feature_baseline == up.feature_baseline
+
+
+def test_uplift_local_attribution_is_signed_and_ranked(models):
+    *_, up, _ = models
+    ev, dg = make_event(), _diag()
+    top_arm = up.rank(ev, dg)[0][0]
+    contribs = up.explain(ev, dg, top_arm, top=5)
+    assert 1 <= len(contribs) <= 5
+    # sorted by |delta| desc; each names a real feature and a value
+    mags = [abs(c["delta"]) for c in contribs]
+    assert mags == sorted(mags, reverse=True)
+    assert all(c["feature"] in up.feature_names for c in contribs)
+
+
+def test_global_importance_is_reported_for_both_models(models):
+    _rt, rt_metrics, _up, up_metrics = models
+    rt_gi = rt_metrics["global_importance"]
+    assert rt_gi and all(0.0 <= abs(r["importance"]) for r in rt_gi)
+    assert any(r["feature"] == "delay_hours" for r in rt_gi)  # timing dominates, as expected
+    up_gi = up_metrics["global_importance"]
+    assert "RETRY_ONLY" in up_gi and len(up_gi["RETRY_ONLY"]) <= 8

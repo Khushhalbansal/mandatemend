@@ -49,6 +49,40 @@
     },
     "n_person_periods": 4523,
     "n_train_rows": 3618,
+    "global_importance": [
+      {
+        "feature": "delay_hours",
+        "importance": 0.0616
+      },
+      {
+        "feature": "cause_BANK_DOWNTIME",
+        "importance": 0.0239
+      },
+      {
+        "feature": "consecutive_failures",
+        "importance": 0.0226
+      },
+      {
+        "feature": "cause_INSUFFICIENT_FUNDS",
+        "importance": 0.0181
+      },
+      {
+        "feature": "cause_MANDATE_PAUSED",
+        "importance": 0.013
+      },
+      {
+        "feature": "cause_TECH_DECLINE",
+        "importance": 0.0121
+      },
+      {
+        "feature": "days_since_last_success",
+        "importance": 0.0111
+      },
+      {
+        "feature": "hour_of_day",
+        "importance": 0.0061
+      }
+    ],
     "oracle": {
       "n_with_a_winning_retry": 199,
       "model_picks_a_winning_delay": 0.437,
@@ -83,6 +117,76 @@
       "SMS_REMINDER",
       "WHATSAPP_UPI_LINK"
     ],
+    "global_importance": {
+      "RETRY_ONLY": [
+        {
+          "feature": "cause_TECH_DECLINE",
+          "importance": 0.1064
+        },
+        {
+          "feature": "consecutive_failures",
+          "importance": 0.0461
+        },
+        {
+          "feature": "cause_BANK_DOWNTIME",
+          "importance": 0.0245
+        },
+        {
+          "feature": "days_since_last_success",
+          "importance": 0.0167
+        },
+        {
+          "feature": "hour_of_day",
+          "importance": 0.013
+        },
+        {
+          "feature": "tenure_months",
+          "importance": 0.0099
+        },
+        {
+          "feature": "cause_MANDATE_PAUSED",
+          "importance": 0.0077
+        },
+        {
+          "feature": "cause_MANDATE_EXPIRED",
+          "importance": 0.0048
+        }
+      ],
+      "WHATSAPP_UPI_LINK": [
+        {
+          "feature": "days_since_last_success",
+          "importance": 0.0806
+        },
+        {
+          "feature": "consecutive_failures",
+          "importance": 0.0452
+        },
+        {
+          "feature": "hour_of_day",
+          "importance": 0.0445
+        },
+        {
+          "feature": "tenure_months",
+          "importance": 0.0313
+        },
+        {
+          "feature": "cause_INSUFFICIENT_FUNDS",
+          "importance": 0.0274
+        },
+        {
+          "feature": "amount_to_cap_ratio",
+          "importance": 0.0212
+        },
+        {
+          "feature": "amount_paise_log",
+          "importance": 0.0098
+        },
+        {
+          "feature": "prior_success_rate",
+          "importance": 0.0081
+        }
+      ]
+    },
     "oracle": {
       "n_with_a_winning_arm": 288,
       "model_top_arm_is_a_winning_arm": 0.75
