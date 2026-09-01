@@ -88,27 +88,58 @@ class RazorpayTestGateway:
         if not (self.key_id and self.key_secret):
             raise RuntimeError("RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET not set")
 
+    #: filled in by attempt() on success, so callers can surface the real link
+    last_response: dict | None = None
+
+    @staticmethod
+    def _reference_id(action: Action) -> str:
+        # Razorpay reference_id: <= 40 chars, must be unique per link. Strip non-alnum from
+        # the idempotency key and add a short time suffix so repeated live-checks don't 409.
+        import re
+        import time
+
+        base = re.sub(r"[^A-Za-z0-9_-]", "-", action.idempotency_key)[:26]
+        return f"{base}-{int(time.time()) % 100000}"
+
     def attempt(self, action: Action, event: FailureEvent) -> tuple[bool | None, int, str]:
         import httpx
 
         amount = action.amount_paise or event.amount_paise
         payload = {
-            "amount": amount,
+            "amount": int(amount),
             "currency": "INR",
-            "accept_partial": action.action_type is ActionType.PARTIAL_CHARGE,
-            "description": f"MandateMend recovery {action.action_type.value} for {event.mandate_id}",
-            "reference_id": action.idempotency_key[:39],
+            "description": (
+                f"MandateMend recovery {action.action_type.value} for {event.mandate_id}"
+            )[:2048],
+            "reference_id": self._reference_id(action),
             "notify": {"sms": False, "email": False},
+            "reminder_enable": False,
         }
-        r = httpx.post(
-            f"{self.base}/payment_links",
-            json=payload,
-            auth=(self.key_id, self.key_secret),
-            timeout=20.0,
-        )
+        try:
+            r = httpx.post(
+                f"{self.base}/payment_links",
+                json=payload,
+                auth=(self.key_id, self.key_secret),
+                timeout=25.0,
+            )
+        except httpx.HTTPError as exc:  # network error -> fail closed, no exception into the loop
+            return None, 0, f"razorpay test-mode network error: {type(exc).__name__}: {exc}"
+
         if r.status_code >= 300:
+            self.last_response = {"http": r.status_code, "error": r.text[:300]}
             return None, 0, f"razorpay test-mode error {r.status_code}: {r.text[:200]}"
+
         body = r.json()
+        self.last_response = {
+            "http": r.status_code,
+            "id": body.get("id"),
+            "short_url": body.get("short_url"),
+            "status": body.get("status"),
+            "amount": body.get("amount"),
+            "reference_id": body.get("reference_id"),
+        }
+        # Outcome is deliberately unknown: test mode cannot force a debit result, so this
+        # proves connectivity, not recovery.
         return None, 0, f"created payment_link {body.get('id')} {body.get('short_url')}"
 
 

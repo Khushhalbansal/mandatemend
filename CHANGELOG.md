@@ -5,6 +5,36 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-01 — step 1: real Razorpay test-mode round-trip (additive, isolated from scoring)
+* `RazorpayTestGateway` hardened: sanitised `reference_id` (alnum + time suffix, `<= 40`,
+  no `|`), `httpx.HTTPError` caught -> fail closed, and it now records `last_response`
+  (http status, `plink_` id, `short_url`, link status) for callers to surface.
+* New `mandatemend/live.py` + `mandatemend live-check [--mandate ID]`: takes one real
+  mandate from the frozen batch (read-only), synthesises a single RETRY `Action`, and runs
+  it through the **real** `Executor` -> `RazorpayTestGateway` path (reserve / execute /
+  finalize + a hash-chained `execution` audit entry) against a persistent
+  `logs/live_audit.sqlite`. Writes `logs/last_live_roundtrip.json`; both gitignored.
+* `config.py` now calls `load_dotenv(REPO_ROOT/".env", override=False)` — pydantic-settings
+  only parses `.env` for `MANDATEMEND_*` fields, so the non-prefixed `RAZORPAY_*` /
+  `ANTHROPIC_*` keys that `RazorpayTestGateway` reads from `os.environ` were previously
+  invisible. `.env` stays gitignored (line 2); never committed in any commit (full-history
+  scan clean).
+* Operator console overview surfaces the last live round-trip (mandate, HTTP status, link
+  id + `short_url`, `executor.executed`, audit-chain status) from the sidecar.
+* Test: `tests/integration/test_razorpay_live.py`, marked `live` (excluded from the default
+  suite via `addopts = -m "not live"`; run with `pytest -m live`; skips with no key).
+  Asserts HTTP 200 + a `plink_` id + `executed is True` + audit chain OK, and that a live
+  round-trip does **not** change the frozen batch/labels SHA-256.
+
+**Evidence (real test-mode calls, no keys logged):**
+`mandatemend live-check` -> HTTP 200, payment link `plink_TWdntO2ORgY7Eh`
+(`https://rzp.io/rzp/43uYvEwc`, status `created`), `executor.executed=True`,
+audit chain OK across 2 entries. `pytest -m live` -> 2 passed.
+
+**Isolation confirmed:** default `pytest` 53 passed / 2 deselected; `mandatemend score`
+unchanged at 62.06% recovery / +14.89pp lift / 0 compliance violations; frozen batch +
+labels SHA-256 unchanged (match `data/FROZEN_SHA256.txt`).
+
 ### 2026-09-01 — iteration 4: trained advisors wired in; batch scoring 3.5min -> 9s
 * **Trained models replace heuristics in the agent.** `SurvivalRetryAdvisor` (discrete-time
   hazard) + `TLearnerUpliftAdvisor` (IPW T-learner, CATE vs a NO_OP control) become the

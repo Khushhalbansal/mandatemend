@@ -31,6 +31,18 @@
 <p class="muted">Audit chain: {{ v.audit_msg }}. Every mandate terminates recovered or on the
 human queue &mdash; never dropped.</p>
 
+{% if v.live_roundtrip %}
+{% set lr = v.live_roundtrip %}
+<p class="muted">Last live Razorpay <b>test-mode</b> round-trip
+({{ lr.ts[:16].replace('T', ' ') }} UTC):
+mandate <span class="mono">{{ lr.mandate_id }}</span> &rarr;
+HTTP <b class="{{ 'big-ok' if lr.http == 200 else 'big-bad' }}">{{ lr.http }}</b>,
+payment link <span class="mono">{{ lr.payment_link_id }}</span>
+(<a href="{{ lr.short_url }}">{{ lr.short_url }}</a>, {{ lr.status }}),
+executor.executed={{ lr.executed }}, {{ lr.audit_chain }}.
+Connectivity proven &mdash; test mode cannot force a debit outcome, so this is not scored.</p>
+{% endif %}
+
 <h2>Agent vs. baselines</h2>
 <table>
   <tr><th>strategy</th><th>recovery rate</th><th style="width:55%"></th></tr>

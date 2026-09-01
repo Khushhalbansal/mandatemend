@@ -65,10 +65,13 @@ per-file-ignores = { "tests/**" = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `live` tests hit the real Razorpay test-mode API (network) — opt in with `pytest -m live`.
+addopts = ["-m", "not live"]
 markers = [
     "integration: needs a database",
     "e2e: full frozen-batch run",
     "llm: needs ANTHROPIC_API_KEY",
+    "live: hits the real Razorpay test-mode API over the network",
 ]
 
 [tool.mypy]

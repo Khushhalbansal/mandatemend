@@ -30,3 +30,7 @@ Thumbs.db
 
 # Node (console assets are vendored, no build step)
 node_modules/
+
+# local live round-trip artifacts (evidence lives in CHANGELOG.md)
+logs/live_audit.sqlite
+logs/last_live_roundtrip.json

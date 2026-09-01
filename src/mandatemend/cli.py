@@ -6,6 +6,7 @@
     mandatemend demo <mandate_id|index>    trace one mandate end to end
     mandatemend serve [--port 8000]        operator console
     mandatemend verify-audit               replay + verify the last scoring run's audit chain
+    mandatemend live-check [--mandate ID]  one REAL Razorpay test-mode round-trip (needs keys)
 """
 
 from __future__ import annotations
@@ -160,6 +161,29 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_live_check(args: argparse.Namespace) -> int:
+    from mandatemend.live import run_live_check
+
+    try:
+        out = run_live_check(args.mandate)
+    except RuntimeError as exc:  # missing keys
+        print(f"live-check unavailable: {exc}")
+        print("set RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET in .env")
+        return 1
+
+    print(f"mandate           {out['mandate_id']}  (Rs {out['amount_paise'] / 100:,.0f})")
+    print(f"gateway           {out['gateway']}")
+    print(f"HTTP              {out['http']}")
+    print(f"payment_link_id   {out['payment_link_id']}")
+    print(f"short_url         {out['short_url']}")
+    print(f"link status       {out['status']}")
+    print(f"executor.executed {out['executed']}   detail: {out['detail']}")
+    print(f"audit chain       {out['audit_chain']}")
+    print(f"                  {out['note']}")
+    print("  -> sidecar written; console overview will show this round-trip")
+    return 0 if out["http"] == 200 else 2
+
+
 def cmd_verify_audit(_a: argparse.Namespace) -> int:
     from mandatemend.audit import ledger
     from mandatemend.batch.run_batch import run
@@ -193,6 +217,10 @@ def main(argv: list[str] | None = None) -> int:
     sv = sub.add_parser("serve")
     sv.add_argument("--port", type=int, default=8000)
     sv.set_defaults(fn=cmd_serve)
+
+    lc = sub.add_parser("live-check")
+    lc.add_argument("--mandate", default=None, help="mandate_id from the frozen batch (default: first)")
+    lc.set_defaults(fn=cmd_live_check)
 
     sub.add_parser("verify-audit").set_defaults(fn=cmd_verify_audit)
 

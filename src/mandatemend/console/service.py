@@ -33,6 +33,7 @@ class BatchView:
     per_cause: list[dict] = field(default_factory=list)
     audit_ok: bool = True
     audit_msg: str = ""
+    live_roundtrip: dict | None = None  # last real Razorpay test-mode call (mandatemend live-check)
 
     def by_id(self, mandate_id: str) -> Row | None:
         return next((r for r in self.rows if r.event.mandate_id == mandate_id), None)
@@ -113,8 +114,15 @@ def build() -> BatchView:
         ],
         audit_ok=ok,
         audit_msg=msg,
+        live_roundtrip=_load_live(),
     )
     return _VIEW
+
+
+def _load_live() -> dict | None:
+    from mandatemend.live import load_last
+
+    return load_last()
 
 
 def view() -> BatchView:
