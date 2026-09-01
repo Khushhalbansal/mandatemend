@@ -8,13 +8,16 @@
   <div>
     <div class="big">Rs {{ sc.recovered_paise | rupees }}</div>
     <div class="sub">recovered of Rs {{ sc.amount_at_risk_paise | rupees }} at risk
-      &mdash; <b>{{ sc.recovery_rate | pct }}</b> recovery rate</div>
+      &mdash; <b>{{ sc.recovery_rate | pct }}</b> recovery rate
+      <span class="muted">(95% CI {{ sc.recovery_rate_ci[0] | pct }}&ndash;{{ sc.recovery_rate_ci[1] | pct }})</span></div>
   </div>
   <div>
     <div class="big {{ 'lift-pos' if sc.lift_vs_static >= 0 else 'lift-neg' }}">
       {{ '+' if sc.lift_vs_static >= 0 else '' }}{{ sc.lift_vs_static | pct }}
     </div>
-    <div class="sub">lift vs static-retry baseline</div>
+    <div class="sub">lift vs static-retry baseline
+      <span class="muted">(95% CI {{ sc.lift_ci[0] | pct }}&ndash;{{ sc.lift_ci[1] | pct }}
+      {%- if sc.lift_ci[0] > 0 %}, entirely above zero{% endif %})</span></div>
   </div>
 </div>
 
@@ -22,7 +25,7 @@
   <div class="cell"><b>{{ sc.n_recovered }}</b><span>recovered</span></div>
   <div class="cell"><b>{{ sc.escalated }}</b><span>to human queue</span></div>
   <div class="cell"><b>{{ sc.retries_total }}</b><span>retries used</span></div>
-  <div class="cell"><b>{{ '%.2f' | format(sc.recoveries_per_retry) }}</b><span>recoveries / retry</span></div>
+  <div class="cell"><b>Rs {{ sc.harm_cost_paise | rupees }}</b><span>harm / FP cost</span></div>
   <div class="cell">
     <b class="{{ 'big-ok' if sc.compliance_violations == 0 else 'big-bad' }}">{{ sc.compliance_violations }}</b>
     <span>compliance violations</span>

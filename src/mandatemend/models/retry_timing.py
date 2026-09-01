@@ -97,11 +97,28 @@ class RetryTimingModel:
         return float(DELAY_BUCKETS_H[i]), float(p[i])
 
     def curve(self, event: FailureEvent, diag: TypedDiagnosis) -> list[tuple[float, float]]:
-        feats = feature_row(event, diag)
-        base = [feats[n] for n in FEATURE_NAMES]
-        rows = np.array([[*base, d] for d in DELAY_BUCKETS_H], float)
-        p = self.clf.predict_proba(rows)[:, 1]
-        return [(float(d), float(pi)) for d, pi in zip(DELAY_BUCKETS_H, p, strict=True)]
+        return self.curve_many([(event, diag)])[0]
+
+    def curve_many(
+        self, rows: list[tuple[FailureEvent, TypedDiagnosis]]
+    ) -> list[list[tuple[float, float]]]:
+        """Batched `curve`: one predict_proba over the (N*buckets, F+1) matrix."""
+        if not rows:
+            return []
+        nb = len(DELAY_BUCKETS_H)
+        mat = np.array(
+            [
+                [*(feature_row(ev, dg)[n] for n in FEATURE_NAMES), d]
+                for ev, dg in rows
+                for d in DELAY_BUCKETS_H
+            ],
+            dtype=float,
+        )
+        p = self.clf.predict_proba(mat)[:, 1].reshape(len(rows), nb)
+        return [
+            [(float(d), float(pi)) for d, pi in zip(DELAY_BUCKETS_H, p[i], strict=True)]
+            for i in range(len(rows))
+        ]
 
     # ---- persistence ---------------------------------------------------
     def save(self, path: Path | None = None) -> Path:

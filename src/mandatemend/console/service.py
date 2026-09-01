@@ -10,6 +10,7 @@ from mandatemend.agent import Agent
 from mandatemend.audit import ledger
 from mandatemend.batch.baselines import run_baseline
 from mandatemend.batch.run_batch import _load_frozen
+from mandatemend.config import settings as _s
 from mandatemend.db.session import init_engine
 from mandatemend.executor.gateway import SimulatedGateway
 from mandatemend.invariants import check_resolution
@@ -49,8 +50,16 @@ def build() -> BatchView:
     ledger.reset_cache()
 
     agent = Agent.default(gateway=SimulatedGateway(labels), audit_enabled=True)
+    agent.warm(events)
+    from mandatemend.batch.baselines import BASELINES
+    from mandatemend.batch.run_batch import _bootstrap_ci
+
+    static_fn = BASELINES["static_retry"]
     rows: list[Row] = []
-    at_risk = recovered = n_rec = retries = escalated = viol = 0
+    at_risk = recovered = n_rec = retries = escalated = viol = harm = 0
+    a_rec: list[int] = []
+    s_rec: list[int] = []
+    risk_v: list[int] = []
     pc: dict[str, dict] = defaultdict(
         lambda: {"n": 0, "rec": 0, "amt_risk": 0, "amt_rec": 0, "esc": 0}
     )
@@ -64,9 +73,15 @@ def build() -> BatchView:
         at_risk += res.amount_at_risk_paise
         retries += res.retries_used
         viol += len(v)
+        risk_v.append(res.amount_at_risk_paise)
+        a_rec.append(res.recovered_amount_paise if res.recovered else 0)
+        b = static_fn(lab["outcomes"], res.amount_at_risk_paise)
+        s_rec.append(b.recovered_paise if b.recovered else 0)
         if res.recovered:
             recovered += res.recovered_amount_paise
             n_rec += 1
+        else:
+            harm += res.contacts_made * _s.outreach_cost_paise  # paid outreach on a lost mandate
         if res.escalated_to_human:
             escalated += 1
         d = pc[lab["true_cause"]]
@@ -81,6 +96,9 @@ def build() -> BatchView:
     ok, msg = ledger.verify_chain()
     base = {n: run_baseline(n, labels) for n in ("static_retry", "single_retry", "email_only")}
     rate = recovered / at_risk if at_risk else 0.0
+    import numpy as np
+
+    rate_ci, lift_ci = _bootstrap_ci(np.array(a_rec), np.array(s_rec), np.array(risk_v))
 
     _VIEW = BatchView(
         built_at=datetime.now(UTC),
@@ -90,6 +108,9 @@ def build() -> BatchView:
             "amount_at_risk_paise": at_risk,
             "recovered_paise": recovered,
             "recovery_rate": rate,
+            "recovery_rate_ci": rate_ci,
+            "lift_ci": lift_ci,
+            "harm_cost_paise": harm,
             "n_recovered": n_rec,
             "retries_total": retries,
             "recoveries_per_retry": (n_rec / retries) if retries else 0.0,

@@ -144,6 +144,20 @@ class Agent:
         if self.audit_enabled:
             ledger.append(mandate_id, "escalation", {"reason": reason, "round": round_no})
 
+    def warm(self, events: list[FailureEvent]) -> None:
+        """Batch-precompute model inference for a whole batch (trained advisors only).
+
+        Cuts a 300-mandate scored run from ~50s to ~10s: HistGBM's per-call Python overhead
+        makes N*|arms| single-row predicts far slower than |arms| predicts over an (N, F)
+        matrix. Diagnosis here is the offline heuristic and is re-run (deterministically) in
+        `recover()` for the audit trail.
+        """
+        rows = [(ev, self.diagnoser.diagnose(ev)) for ev in events]
+        for advisor in (self.retry_advisor, self.intervention_advisor):
+            warm = getattr(advisor, "warm", None)
+            if callable(warm):
+                warm(rows)
+
     def recover(self, event: FailureEvent) -> MandateResolution:  # noqa: C901 - one explicit loop
         diag = self.diagnoser.diagnose(event)
         if self.audit_enabled:

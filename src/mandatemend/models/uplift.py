@@ -131,14 +131,36 @@ class UpliftModel:
         self, event: FailureEvent, diag: TypedDiagnosis
     ) -> list[tuple[InterventionType, float, float]]:
         """Return [(arm, p_recover, uplift_vs_control)] sorted by uplift desc."""
-        feats = feature_row(event, diag)
-        x = np.array([[feats[n] for n in FEATURE_NAMES]], float)
-        p_ctrl = self._p(CONTROL.value, x)
+        return self.rank_many([(event, diag)])[0]
+
+    def rank_many(
+        self, rows: list[tuple[FailureEvent, TypedDiagnosis]]
+    ) -> list[list[tuple[InterventionType, float, float]]]:
+        """Batched `rank`: one predict_proba per arm over the whole (N, F) matrix instead of
+        N*|arms| single-row calls (HistGBM's per-call overhead dominates otherwise)."""
+        if not rows:
+            return []
+        x = np.array(
+            [[feature_row(ev, dg)[n] for n in FEATURE_NAMES] for ev, dg in rows], dtype=float
+        )
+        cols: dict[str, np.ndarray] = {}
+        for arm in {*(a.value for a in ARMS), CONTROL.value}:
+            clf = self.arm_models.get(arm)
+            cols[arm] = (
+                clf.predict_proba(x)[:, 1]
+                if clf is not None
+                else np.full(len(rows), 0.05)
+            )
+        p_ctrl = cols[CONTROL.value]
         out = []
-        for arm in ARMS:
-            p = self._p(arm.value, x)
-            out.append((arm, p, p - p_ctrl))
-        out.sort(key=lambda t: t[2], reverse=True)
+        for i in range(len(rows)):
+            ranked = sorted(
+                ((arm, float(cols[arm.value][i]), float(cols[arm.value][i] - p_ctrl[i]))
+                 for arm in ARMS),
+                key=lambda t: t[2],
+                reverse=True,
+            )
+            out.append(ranked)
         return out
 
     # ---- persistence ----------------------------------------------

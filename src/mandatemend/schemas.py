@@ -245,6 +245,10 @@ class Scorecard(BaseModel):
     recovered_paise: int = 0
     batch_recovery_rate: float = 0.0
 
+    # 95% bootstrap CIs (mandate-resampled, seeded) on the money-weighted rates.
+    recovery_rate_ci: tuple[float, float] = (0.0, 0.0)
+    baseline_lift_ci: tuple[float, float] = (0.0, 0.0)
+
     baseline_static_recovery_rate: float = 0.0
     baseline_email_only_recovery_rate: float = 0.0
     baseline_single_retry_recovery_rate: float = 0.0
@@ -254,5 +258,10 @@ class Scorecard(BaseModel):
     recoveries_per_retry: float = 0.0
     unnecessary_contacts: int = 0
     escalated_count: int = 0
+    # Harm/false-positive cost: paid outreach to mandates that never recovered, plus any
+    # amount charged above what a mandate could bear. Reported explicitly (research file §D.5).
+    harm_cost_paise: int = 0
 
     compliance_violations: int = 0  # MUST be 0 (CLAUDE.md §3.1 stop-the-line)
+
+    per_cause: list[dict] = Field(default_factory=list)

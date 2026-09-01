@@ -129,6 +129,13 @@ class SurvivalRetryAdvisor:
 
         self.model = model or RetryTimingModel.load()
         self._curve_cache: tuple[str, list[tuple[float, float]]] | None = None
+        self._warm: dict[str, list[tuple[float, float]]] = {}
+
+    def warm(self, rows: list[tuple[FailureEvent, TypedDiagnosis]]) -> None:
+        """Batch-precompute every mandate's hazard curve in one model call (big speedup for
+        a whole-batch run — HistGBM's per-call overhead dominates otherwise)."""
+        for (ev, _dg), curve in zip(rows, self.model.curve_many(rows), strict=True):
+            self._warm[ev.mandate_id] = curve
 
     def advise(
         self,
@@ -138,11 +145,12 @@ class SurvivalRetryAdvisor:
         tried_delays: frozenset[float] = _EMPTY_DELAYS,
     ) -> RetryTimingAdvice:
         # The hazard curve depends only on (event, diag), which are fixed for a mandate across
-        # the recovery loop's rounds. Memoise the model call; only the tried-delay filter
-        # changes round to round. (Batch runs made ~10k redundant predict calls without this.)
-        if self._curve_cache is None or self._curve_cache[0] != event.mandate_id:
-            self._curve_cache = (event.mandate_id, self.model.curve(event, diag))
-        curve = self._curve_cache[1]
+        # the recovery loop's rounds: use the warm batch cache, else a 1-entry memo.
+        curve = self._warm.get(event.mandate_id)
+        if curve is None:
+            if self._curve_cache is None or self._curve_cache[0] != event.mandate_id:
+                self._curve_cache = (event.mandate_id, self.model.curve(event, diag))
+            curve = self._curve_cache[1]
         avail = [(d, p) for d, p in curve if d not in tried_delays] or curve
         d, p = max(avail, key=lambda t: t[1])
         return RetryTimingAdvice(delay_hours=d, p_success=p, model_source=self.model_source)
@@ -158,6 +166,12 @@ class TLearnerUpliftAdvisor:
 
         self.model = model or UpliftModel.load()
         self._rank_cache: tuple[str, list] | None = None
+        self._warm: dict[str, list] = {}
+
+    def warm(self, rows: list[tuple[FailureEvent, TypedDiagnosis]]) -> None:
+        """Batch-precompute every mandate's arm ranking in |arms| model calls total."""
+        for (ev, _dg), ranked in zip(rows, self.model.rank_many(rows), strict=True):
+            self._warm[ev.mandate_id] = ranked
 
     def advise(
         self,
@@ -166,11 +180,12 @@ class TLearnerUpliftAdvisor:
         *,
         tried: frozenset[InterventionType] = _EMPTY_ARMS,
     ) -> InterventionAdvice:
-        # Same memo rationale as SurvivalRetryAdvisor: the arm ranking is fixed per mandate;
-        # only the `tried` filter varies round to round.
-        if self._rank_cache is None or self._rank_cache[0] != event.mandate_id:
-            self._rank_cache = (event.mandate_id, self.model.rank(event, diag))
-        ranked = self._rank_cache[1]  # [(arm, p_recover, uplift)] desc by uplift
+        # The arm ranking is fixed per mandate; use the warm batch cache, else a 1-entry memo.
+        ranked = self._warm.get(event.mandate_id)
+        if ranked is None:
+            if self._rank_cache is None or self._rank_cache[0] != event.mandate_id:
+                self._rank_cache = (event.mandate_id, self.model.rank(event, diag))
+            ranked = self._rank_cache[1]  # [(arm, p_recover, uplift)] desc by uplift
         avail = [t for t in ranked if t[0] not in tried] or ranked
         top_arm, top_p, top_uplift = avail[0]
         return InterventionAdvice(
