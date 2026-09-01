@@ -1,8 +1,9 @@
-"""Train the retry-timing (survival) and uplift (T-learner) models; report metrics.
+"""Train the retry-timing (discrete-time hazard) and uplift (T-learner) models; report metrics.
 
 Trains only on `data/training_set.json` (the logging-policy rows). Never touches the frozen
 held-out batch. Writes artifacts to `src/mandatemend/models/artifacts/` and a metrics blob
-to `logs/model_metrics.json`.
+to `logs/model_metrics.json` — including the retry model's time-stratified calibration
+(per-bucket AUC / Brier, integrated Brier score) alongside the oracle agreement check.
 
 An oracle check against the held-out potential-outcomes table is included for reporting only
 (does the model's argmax delay / argmax arm agree with the realized best?) — it does not feed

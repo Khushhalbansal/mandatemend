@@ -14,14 +14,27 @@ and `logs/model_metrics.json`. `random_state=0` everywhere, so a retrain is dete
 
 **Question:** *when* to retry, within the NPCI 1-original-+-3-retry budget — not *if*.
 
-**Formulation.** One row per `(sample, observed delay bucket)` from the logging policy;
-target = did that retry succeed. A gradient-boosted classifier estimates the per-bucket
-success hazard `P(retry succeeds | features, delay_bucket)`. Scoring a candidate delay =
-evaluating the hazard at that bucket; the advisor returns the whole curve over the 7 buckets
-`{0, 6, 24, 48, 72, 120, 168}h` and the agent walks it across successive retries (skipping
-buckets already tried). Pooled classification over `(features, time)` is the standard
-discrete-time hazard estimator (Singer & Willett); survival framing for soft-collection
-timing follows Witzany & Kozina (2022).
+**Formulation (discrete-time hazard, Singer & Willett 2003, ch. 10–12).** Person-period
+design: one row per training mandate at its logged delay bucket, target = did that retry
+succeed. A pooled gradient-boosted classifier estimates the **discrete-time hazard**
+
+    h(t | x) = P(a retry first succeeds in bucket t | not succeeded before t, x)
+
+over the 7 buckets `{0, 6, 24, 48, 72, 120, 168}h`. From `h` the model exposes the
+**survival** `S(t) = Π_{s≤t}(1 − h(s))`, the **cumulative recovery** `1 − S(t)`, and
+`expected_recovery_for_schedule(...)` = `1 − Π_{b∈schedule}(1 − h(b))` — the composed
+survival for an ordered ≤3-bucket retry plan (used by the sequencing evaluation). The
+advisor returns the hazard curve and the agent walks it across successive retries, skipping
+buckets already tried. Survival framing for soft-collection timing follows Witzany & Kozina
+(2022).
+
+*Honest scope of the reframe (iteration 9a):* the composition math and the time-stratified
+metrics below are new; the single-pick behaviour (`best_delay` = argmax hazard) is
+**unchanged** — the reframe formalises and instruments what the model already did, it does
+not move the scorecard. Data caveat: the logging policy tries exactly one delay per mandate,
+so each mandate is a single person-period observation; we do not synthesise risk-set rows
+for un-tried earlier buckets. `S(t)` assumes bucket-conditional independence given `x`,
+which holds by construction in the simulator (each `RETRY@d` outcome is its own draw).
 
 **Debiasing.** The logging policy is mildly confounded (it favours payday-adjacent retries
 for insufficient-funds). Rows are inverse-propensity weighted (`w = 1/π`, clipped at 10)
@@ -48,6 +61,16 @@ baseline"), but only modestly. It is not a strong classifier in absolute terms
 payday, so timing has to be inferred from `day_of_month × issuer × amount × history`, exactly
 as a real system would. Most of the system's lift comes from the uplift model + the
 round-aware orchestration, not from point retry-timing.
+
+**Time-stratified calibration** (`logs/model_metrics.json → retry_timing`, on the held-out
+20% of person-periods). Reported per discrete-time bucket: `n`, observed `event_rate`,
+`auc`, and `brier`; plus the **integrated Brier score** (mean Brier across buckets,
+`IBS ≈ 0.17`) and the overall `val_brier`. Most buckets are data-starved — the logging
+policy concentrates observations on the 24h and 168h buckets (n ≈ 380 / 250; the rest
+n ≈ 30–90) — so per-bucket AUC ranges from ~0.54 in the dominant buckets to ~0.88 in the
+sparse early ones. This is surfaced rather than averaged away; it is the honest picture of
+what one biased logging policy can teach a timing model, and it motivates the ablation
+(§ below) that shows how little of the +14 pp actually rides on retry timing.
 
 ---
 

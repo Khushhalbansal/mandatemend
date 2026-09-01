@@ -1,6 +1,53 @@
 {
   "retry_timing": {
     "val_auc": 0.6848,
+    "val_brier": 0.1913,
+    "integrated_brier_score": 0.1679,
+    "per_bucket": {
+      "0.0": {
+        "n": 18,
+        "event_rate": 0.1667,
+        "auc": 0.8222,
+        "brier": 0.127
+      },
+      "6.0": {
+        "n": 49,
+        "event_rate": 0.2653,
+        "auc": 0.6239,
+        "brier": 0.1932
+      },
+      "24.0": {
+        "n": 376,
+        "event_rate": 0.4149,
+        "auc": 0.574,
+        "brier": 0.2429
+      },
+      "48.0": {
+        "n": 40,
+        "event_rate": 0.25,
+        "auc": 0.76,
+        "brier": 0.1448
+      },
+      "72.0": {
+        "n": 85,
+        "event_rate": 0.2824,
+        "auc": 0.6038,
+        "brier": 0.1943
+      },
+      "120.0": {
+        "n": 85,
+        "event_rate": 0.2,
+        "auc": 0.7742,
+        "brier": 0.1261
+      },
+      "168.0": {
+        "n": 252,
+        "event_rate": 0.1706,
+        "auc": 0.5827,
+        "brier": 0.1468
+      }
+    },
+    "n_person_periods": 4523,
     "n_train_rows": 3618,
     "oracle": {
       "n_with_a_winning_retry": 199,

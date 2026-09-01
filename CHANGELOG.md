@@ -5,6 +5,43 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-01 — iteration 9a (work-stream B2): retry-timing as a proper discrete-time hazard
+
+**Scope decision.** Work-stream B1 (issuer × day-of-month empirical-Bayes prior) was
+**skipped** this iteration: the current generator emits every non-downtime failure in a
+~20 h window around Sep 1, so `day_of_month` has ~2 distinct values and the feature
+collapses to issuer-level target-encoding. Not worth the iteration's budget; parked as a
+stretch item pending a generator evolution (work-stream C).
+
+**B2 — `models/retry_timing.py` reframed.** It was already *called* a discrete-time hazard
+but was structurally a pooled binary classifier with delay as a feature. Now stated and
+instrumented properly (Singer & Willett 2003, ch. 10–12):
+  * person-period design made explicit (`_design`): one row per training mandate at its
+    logged bucket, `y` = success-in-bucket, IPW weight.
+  * new derived views on the same hazard `h(t)`: `survival_curve` `S(t)=Π(1−h)`,
+    `recovery_curve` `1−S(t)`, and `expected_recovery_for_schedule(...)`
+    `= 1 − Π_{b∈schedule}(1−h(b))` — the composed survival for an ordered ≤3-bucket retry
+    plan (this feeds the B3 sequencing metric).
+  * `train.py` now reports **time-stratified calibration**: per-bucket `n` / `event_rate` /
+    `auc` / `brier`, plus the integrated Brier score and overall `val_brier`, alongside the
+    existing oracle agreement. Surfaces (rather than averages away) that the logging policy
+    concentrates observations on the 24 h + 168 h buckets, leaving the rest data-starved.
+  * data caveat documented in the module + `docs/MODELS.md`: one observation per mandate, no
+    synthesised risk-set rows; `S(t)` assumes bucket-conditional independence given `x`,
+    which holds by construction in the simulator.
+
+**Honest outcome: no headline change, and that is by design.** `best_delay` = argmax hazard
+is unchanged; the retrained `retry_timing.joblib` is **byte-identical** to the pre-reframe
+artifact. Scorecard stays **61.42 % / +14.24 pp / 0 violations** (iteration 9 line;
+per-cause identical to iteration 7). The value here is rigor + the survival composition the
+sequencing evaluation needs, not a number.
+
+**A worse variant, tried and reverted (§3.2).** First cut of B2 also (a) shuffled the
+train/val split, (b) refit the saved model on *all* rows, (c) used an ordinal bucket index
+instead of raw delay hours. That dropped the frozen-batch recovery to **59.84 % (−1.58 pp)**
+and the retry oracle from 0.437 → 0.412 (tying naive). Reverted all three; kept only the
+additive framing. Logged here rather than silently.
+
 ### 2026-09-01 — iteration 8: the unbeatable-safety-story pass (work-stream A)
 
 Goal (per the hardening plan): leave a panel with nothing to poke at on safety. No change

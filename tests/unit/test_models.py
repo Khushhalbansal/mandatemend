@@ -40,6 +40,47 @@ def test_retry_val_auc_is_reported_and_beats_coin_flip(models):
     assert rt_metrics["val_auc"] >= 0.5
 
 
+def test_retry_time_aware_metrics_shape(models):
+    _rt, rt_metrics, *_ = models
+    assert rt_metrics["integrated_brier_score"] is not None
+    assert 0.0 <= rt_metrics["integrated_brier_score"] <= 1.0
+    pb = rt_metrics["per_bucket"]
+    # one entry per delay bucket that appears in the logging data, keyed by bucket hours
+    assert set(pb) <= {str(d) for d in DELAY_BUCKETS_H}
+    assert all(v["n"] >= 1 for v in pb.values())
+
+
+def test_retry_hazard_survival_recovery_are_consistent(models):
+    rt, *_ = models
+    ev, dg = make_event(), _diag()
+    hz = rt.hazard_curve(ev, dg)
+    assert hz == rt.curve(ev, dg)  # legacy alias unchanged
+    surv = rt.survival_curve(ev, dg)
+    rec = rt.recovery_curve(ev, dg)
+    s = 1.0
+    for (d, h), (ds, sv), (dr, rv) in zip(hz, surv, rec, strict=True):
+        assert d == ds == dr
+        s *= 1.0 - h
+        assert sv == pytest.approx(s, abs=1e-9)
+        assert rv == pytest.approx(1.0 - s, abs=1e-9)
+    # survival is non-increasing, recovery non-decreasing
+    svals = [s for _, s in surv]
+    assert all(a >= b - 1e-12 for a, b in zip(svals, svals[1:], strict=False))
+    assert [r for _, r in rec] == sorted(r for _, r in rec)
+
+
+def test_expected_recovery_for_schedule_composes_the_hazards(models):
+    rt, *_ = models
+    ev, dg = make_event(), _diag()
+    hz = dict(rt.hazard_curve(ev, dg))
+    sched = [24.0, 72.0, 168.0]
+    expect = 1.0 - (1 - hz[24.0]) * (1 - hz[72.0]) * (1 - hz[168.0])
+    assert rt.expected_recovery_for_schedule(ev, dg, sched) == pytest.approx(expect, abs=1e-9)
+    # a longer schedule can only help; a single-bucket schedule == that bucket's hazard
+    assert rt.expected_recovery_for_schedule(ev, dg, [24.0]) == pytest.approx(hz[24.0], abs=1e-9)
+    assert rt.expected_recovery_for_schedule(ev, dg, sched) >= hz[24.0] - 1e-12
+
+
 def test_retry_save_load_roundtrip(models, tmp_path):
     rt, *_ = models
     p = rt.save(tmp_path / "rt.joblib")
