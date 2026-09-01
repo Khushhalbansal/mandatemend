@@ -5,6 +5,38 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-02 — iteration 9c: the ablation caught a real bug (PARTIAL_CHARGE poisons retry-first)
+
+Following up the iteration-9b ablation finding (shipped `survival + T-learner` at 61.42 %,
+behind `survival + heuristic` by 3.8 pp), per the user's call to **investigate before
+deciding the shipped default**. It was a bug, not "the heuristic is just better":
+
+**Root cause.** `agent._prefer_retry_when_competitive` — the override that forces the retry
+budget to be spent before any other arm on `TECH_DECLINE / BANK_DOWNTIME / SUSPECTED_CHURN`
+— exempted `PARTIAL_CHARGE` alongside `RETRY_ONLY`. A partial charge still (a) consumes one
+of the 3 NPCI attempts and (b) marks its delay bucket as tried. So on a transient
+tech-decline the T-learner (which ranks `PARTIAL_CHARGE` top for `TECH_DECLINE`, its highest
+`arm_pos_rate` at 0.46) would burn the first retry on a partial charge at 24 h, poisoning
+the exact bucket a plain `RETRY@24h` wins on — then lose at 48/72 h. The heuristic never
+picks `PARTIAL_CHARGE` for `TECH_DECLINE`, so it never hit this. Traced on 6+ high-value
+`TECH_DECLINE` mandates: `heur: NOTIFY[x] → RETRY@24[ok]` vs
+`tlearn: NOTIFY[x] → PARTIAL_CHARGE@24[x] → RETRY@48[x] → RETRY@72[x] → ESCALATE`.
+
+**Fix (1 line of logic).** Only `RETRY_ONLY` passes the override now; `PARTIAL_CHARGE` on a
+retry-first cause is redirected to a full retry. Partial charge still applies normally for
+`LIMIT_EXCEEDED` (where the full amount is genuinely over the per-txn cap).
+
+**Effect.** Shipped `survival + T-learner`: **61.42 → 63.51 %** recovery, lift **+14.24 →
++16.33 pp**, the whole `TECH_DECLINE` bleed (4 mandates / ₹6.4 k) gone, retries *down*
+295 → 287, escalations 96 → 92, **0 compliance violations**, 94/94 tests, property 10/10,
+redteam 5/5. Logged as iteration 11.
+
+**Still open (deferred to iteration 11 / v2 batch).** `survival + heuristic` (65.23 %) still
+leads by 1.7 pp, now concentrated in `LIMIT_EXCEEDED` (n = 2) and dead-mandate buckets
+(n ≈ 4) — too thin to trust the sign. The T-learner is clearly ahead on the big
+`INSUFFICIENT_FUNDS` bucket. Shipped default stays `survival + T-learner`; the disjoint
+1000-mandate v2 batch decides whether that changes.
+
 ### 2026-09-01 — iteration 9b (work-stream B3+B4+B5): `mandatemend eval`
 
 New `src/mandatemend/eval.py` + `mandatemend eval [--sequencing|--calibration|--ablation]`

@@ -64,15 +64,20 @@ def _prefer_retry_when_competitive(
     diag: TypedDiagnosis,
     retries_used: int,
 ) -> InterventionAdvice:
-    """Targeted override: on `_RETRY_FIRST_CAUSES`, spend the retry budget before an arm."""
+    """Targeted override: on `_RETRY_FIRST_CAUSES`, spend the retry budget on a *full* retry
+    before any other arm.
+
+    Only `RETRY_ONLY` passes through. `PARTIAL_CHARGE` is deliberately *not* exempt here: a
+    partial charge still consumes one of the 3 NPCI attempts AND marks its delay bucket as
+    tried, so on a transient TECH_DECLINE / a bank-downtime window / a mis-labelled churn
+    account it poisons the exact bucket a plain full retry would have won on (found in the
+    iteration-9 ablation: the T-learner ranks PARTIAL_CHARGE top for TECH_DECLINE and lost
+    high-value mandates that the heuristic recovered with a straight RETRY@24h)."""
     if retries_used >= settings.npci_max_retries:
         return interv_adv
     if diag.cause.value not in _RETRY_FIRST_CAUSES:
         return interv_adv
-    if interv_adv.intervention in (
-        InterventionType.RETRY_ONLY,
-        InterventionType.PARTIAL_CHARGE,
-    ):
+    if interv_adv.intervention is InterventionType.RETRY_ONLY:
         return interv_adv
     return InterventionAdvice(
         intervention=InterventionType.RETRY_ONLY,

@@ -1,7 +1,7 @@
 # MandateMend
 
 [![CI](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml/badge.svg)](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml)
-&nbsp;coverage 90% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 96 tests (86 + 10 Hypothesis property tests) &nbsp;·&nbsp; `redteam` 5/5
+&nbsp;coverage 90% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 104 tests (94 + 10 Hypothesis property tests) &nbsp;·&nbsp; `redteam` 5/5
 
 **A compliance-gated recovery agent for failed UPI AutoPay / e-mandate debits.**
 Razorpay AI Buildathon 2026 — Track 03 (AI Revenue Recovery), sub-angle 3A.
@@ -35,12 +35,12 @@ two real safety holes this iteration — see *What broke*.
 
 | metric | value |
 |---|---|
-| **recovery rate** | **61.42 %** (₹283,942 of ₹462,300 at risk) — 95 % CI [54.03 %, 68.39 %] |
-| **lift vs. static-retry** (24h / 72h / 168h ladder) | **+14.24 pp** — 95 % CI [7.27 pp, 21.86 pp], **entirely above zero** |
-| lift vs. single-retry / email-only | +36 pp / +41 pp |
+| **recovery rate** | **63.51 %** (₹293,588 of ₹462,300 at risk) — 95 % CI [56.28 %, 70.45 %] |
+| **lift vs. static-retry** (24h / 72h / 168h ladder) | **+16.33 pp** — 95 % CI [9.94 pp, 23.81 pp], **entirely above zero** |
+| lift vs. single-retry / email-only | +38 pp / +43 pp |
 | **NPCI compliance violations** | **0** — independently re-checked by `invariants.py` |
-| retries used / recoveries-per-retry | 295 / 0.69 |
-| harm / false-positive cost | ₹279 (paid outreach on mandates that never recovered) |
+| retries used / recoveries-per-retry | 287 / 0.72 |
+| harm / false-positive cost | ₹272 (paid outreach on mandates that never recovered) |
 | terminal state | every mandate ends **recovered** or **on the human queue** — never dropped |
 | one real Razorpay **test-mode** round-trip | `plink_…` created, HTTP 200, wired through the executor + audit ledger (`mandatemend live-check`) |
 
@@ -111,25 +111,25 @@ Runs entirely offline against synthetic data. Trained model artifacts are commit
 
 ```
 $ mandatemend score
-MandateMend batch scorecard  (v0.1.0, iteration 8)
+MandateMend batch scorecard  (v0.1.0, iteration 11)
   batch size                 300
   amount at risk             Rs 462,300
-  recovered (agent)          Rs 283,942   61.42%   95% CI [54.03%, 68.39%]
+  recovered (agent)          Rs 293,588   63.51%   95% CI [56.28%, 70.45%]
   baseline static-retry      47.18%
   baseline single-retry      24.96%
   baseline email-only        19.99%
-  LIFT vs static-retry       14.24%   95% CI [7.27%, 21.86%]
-  retries used (total)       295
-  recoveries / retry         0.6915
-  contacts on non-recovered  186   harm cost Rs 279
-  escalated to human         96
+  LIFT vs static-retry       16.33%   95% CI [9.94%, 23.81%]
+  retries used (total)       287
+  recoveries / retry         0.7247
+  contacts on non-recovered  181   harm cost Rs 272
+  escalated to human         92
   COMPLIANCE VIOLATIONS      0
   per cause:
     BANK_DOWNTIME        n=38   rec=34    89.47%  esc=4
     INSUFFICIENT_FUNDS   n=134  rec=96    71.64%  esc=38
-    TECH_DECLINE         n=59   rec=47    79.66%  esc=12
+    TECH_DECLINE         n=59   rec=51    86.44%  esc=8
     ...
-  tests 86/86   lint_errors 0   type_errors 0
+  tests 94/94   lint_errors 0   type_errors 0
 ```
 
 ## Data & scoring isolation (CLAUDE.md §1.3)
@@ -171,6 +171,17 @@ Honest running log in [`CHANGELOG.md`](CHANGELOG.md):
   check counted a mandate's *pre-session* contacts against the cap, so a mandate arriving
   already over the weekly limit was mis-flagged — now it bounds the agent's *own* session
   contacts by the *remaining* budget. Both fixed, both with new tests.
+* **iter 9 — the ablation caught a real bug.** `mandatemend eval --ablation` swaps each
+  advisor pair into the agent; the first run showed the shipped `survival + T-learner` at
+  61.42 %, *behind* `survival + heuristic` by 3.8 pp. Root cause:
+  `_prefer_retry_when_competitive` exempted `PARTIAL_CHARGE` alongside `RETRY_ONLY` for
+  retry-first causes, but a partial charge consumes an NPCI attempt *and* marks its delay
+  bucket tried — poisoning the `RETRY@24h` bucket a transient `TECH_DECLINE` wins on. The
+  T-learner ranks `PARTIAL_CHARGE` top for `TECH_DECLINE`; the heuristic never does. Fix:
+  only `RETRY_ONLY` passes the override. **61.42 → 63.51 %**, `TECH_DECLINE` recovery
+  79.7 → 86.4 %, retries *down*, 0 violations. A 1.7 pp gap to `survival + heuristic`
+  remains (thin buckets); the shipped default decision is deferred to the 1000-mandate v2
+  batch.
 
 ## Layout
 

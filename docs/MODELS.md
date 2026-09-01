@@ -156,7 +156,7 @@ Uplift is compared arm-by-arm against a **single canonical realised execution** 
 Both are reasonably calibrated; MCE is driven by the sparse high-probability tail bins
 (n ≈ 2–25). Full reliability tables in `logs/eval.json`.
 
-### 4c. Ablation (B5) — where does the +14 pp come from?
+### 4c. Ablation (B5) — where does the lift come from, and one bug it caught
 
 Recovery rate on the frozen 300-batch with each advisor pair swapped in (all other
 orchestration held fixed):
@@ -166,20 +166,33 @@ orchestration held fixed):
 | naive static-retry ladder (no agent) | 47.18 % | +0.00 |
 | heuristic retry + heuristic uplift | 56.21 % | +9.04 |
 | **survival retry + heuristic uplift** | **65.23 %** | **+18.05** |
-| heuristic retry + T-learner uplift | 51.73 % | +4.55 |
-| survival retry + T-learner uplift *(shipped)* | 61.42 % | +14.24 |
+| heuristic retry + T-learner uplift | 51.83 % | +4.66 |
+| survival retry + T-learner uplift *(shipped)* | **63.51 %** | **+16.33** |
 
-**Honest, uncomfortable finding.** The shipped config is *not* the best of the five on this
-batch: **`survival retry + heuristic uplift` scores +3.8 pp higher (65.23 % vs 61.42 %)**,
-and the T-learner uplift model *lowers* recovery in both pairings it appears in
-(56.21 → 51.73 with heuristic retry; 65.23 → 61.42 with survival retry). On this 300-mandate
-batch the trained uplift model is net-negative versus the domain-rule intervention advisor.
-It is not obviously a bug — the retry-first override and round-aware walk interact with arm
-ranking — but it means the "rank by causal uplift, not predicted success" pitch is currently
-carried by the *architecture*, not by this particular trained T-learner beating the
-heuristic. This is flagged for iteration 11's 1000-mandate v2 batch: if `survival +
-heuristic` still leads there, the shipped default should change (and the T-learner kept as an
-option / an honest negative result). Not silently switched off one thin batch.
+**The first run of this ablation showed the shipped config at 61.42 %, *behind*
+`survival + heuristic` by 3.8 pp — and the investigation found a real bug** (not a "the
+heuristic is just better" result):
+
+`agent._prefer_retry_when_competitive` — the targeted override that spends the retry budget
+before an arm on `TECH_DECLINE / BANK_DOWNTIME / SUSPECTED_CHURN` — was exempting
+`PARTIAL_CHARGE` alongside `RETRY_ONLY`. But a partial charge **consumes one of the 3 NPCI
+attempts** *and* marks its delay bucket as tried, so on a transient tech-decline it poisoned
+the exact bucket (`RETRY@24h`) a plain full retry would have won on. The T-learner ranks
+`PARTIAL_CHARGE` top for `TECH_DECLINE` (highest `arm_pos_rate`, 0.46), so it hit this on
+every such mandate; the heuristic never picks `PARTIAL_CHARGE` for `TECH_DECLINE`, so it
+didn't. Fix: only `RETRY_ONLY` passes the override now. Result: shipped **61.42 → 63.51 %**
+(+2.1 pp), the entire `TECH_DECLINE` bleed (4 mandates / ₹6.4 k) gone, retries *down*
+295 → 287, 0 compliance violations.
+
+**Residual gap: 1.7 pp.** `survival + heuristic` (65.23 %) still leads the shipped
+`survival + T-learner` (63.51 %). What remains is concentrated in `LIMIT_EXCEEDED` (n = 2)
+and the dead-mandate buckets (`MANDATE_PAUSED/EXPIRED`, n ≈ 4) — the T-learner steers to
+`OFFER_ALTERNATE_METHOD` where the heuristic's WhatsApp-link path does better — while the
+T-learner is clearly *ahead* on the big `INSUFFICIENT_FUNDS` bucket (+16 mandates / ₹32 k
+recovered that the heuristic misses). On n ≈ 2–4 mandates the sign of that residual is not
+trustworthy. Decision deferred to iteration 11's disjoint 1000-mandate v2 batch: if
+`survival + heuristic` still leads there, the shipped default changes and the T-learner is
+kept as an option / an honest negative result. Not switched off one thin batch.
 
 ## 5. Known limitations
 
