@@ -43,6 +43,16 @@ from mandatemend.simulation import (  # noqa: E402
     snap_delay,
 )
 
+
+def _seed(*parts: object) -> int:
+    """Stable 32-bit seed from any parts. `hash()` is salted per-process (PYTHONHASHSEED),
+    so it can't be used here — the generated data must be byte-identical on every machine."""
+    from hashlib import blake2b
+
+    key = "|".join(str(p) for p in parts).encode()
+    return int.from_bytes(blake2b(key, digest_size=4).digest(), "big")
+
+
 DATA_DIR = Path(__file__).resolve().parent
 NOW = datetime(2026, 9, 1, 9, 0, tzinfo=UTC)
 
@@ -97,7 +107,7 @@ class MandateDraw:
     def __init__(self, idx: int, master_seed: int, down_issuers: list[str], down_start: datetime):
         self.mandate_id = f"mnd_{master_seed:08x}_{idx:05d}"
         self.customer_id = f"cust_{(master_seed ^ (idx * 2654435761)) & 0xFFFFFFFF:08x}"
-        rng = np.random.default_rng(abs(hash((master_seed, idx))) % (2**32))
+        rng = np.random.default_rng(_seed(master_seed, idx))
         self.rng = rng
 
         self.method = (
@@ -253,7 +263,7 @@ class MandateDraw:
 
     def potential_outcomes(self) -> dict[str, dict]:
         """Realize every candidate outcome once. Fixed booleans -> fair cross-strategy scoring."""
-        rng = np.random.default_rng(abs(hash((self.mandate_id, "outcomes"))) % (2**32))
+        rng = np.random.default_rng(_seed(self.mandate_id, "outcomes"))
         full = self.amount_paise
         table: dict[str, dict] = {}
 
@@ -382,7 +392,7 @@ def build(
             continue
         po = d.potential_outcomes()
         key, prop = _logging_action(
-            d, np.random.default_rng(abs(hash((d.mandate_id, "log"))) % 2**32)
+            d, np.random.default_rng(_seed(d.mandate_id, "log"))
         )
         obs = po[key]
         train_rows.append(

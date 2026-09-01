@@ -1,31 +1,31 @@
 {
   "retry_timing": {
-    "val_auc": 0.7296,
-    "n_train_rows": 3538,
+    "val_auc": 0.6848,
+    "n_train_rows": 3618,
     "oracle": {
       "n_with_a_winning_retry": 199,
-      "model_picks_a_winning_delay": 0.452,
+      "model_picks_a_winning_delay": 0.437,
       "naive_+72h_is_a_winning_delay": 0.412
     }
   },
   "uplift": {
     "arm_counts": {
-      "RETRY_ONLY": 4028,
-      "WHATSAPP_UPI_LINK": 1632,
-      "SMS_REMINDER": 110,
-      "GRACE_48H": 130,
-      "PARTIAL_CHARGE": 395,
-      "METHOD_SWITCH": 1295,
-      "NO_OP": 110
+      "RETRY_ONLY": 4104,
+      "WHATSAPP_UPI_LINK": 1605,
+      "SMS_REMINDER": 115,
+      "GRACE_48H": 114,
+      "PARTIAL_CHARGE": 419,
+      "METHOD_SWITCH": 1228,
+      "NO_OP": 115
     },
     "arm_pos_rate": {
-      "RETRY_ONLY": 0.271,
-      "WHATSAPP_UPI_LINK": 0.309,
-      "SMS_REMINDER": 0.227,
-      "GRACE_48H": 0.123,
-      "PARTIAL_CHARGE": 0.509,
-      "METHOD_SWITCH": 0.426,
-      "NO_OP": 0.027
+      "RETRY_ONLY": 0.283,
+      "WHATSAPP_UPI_LINK": 0.303,
+      "SMS_REMINDER": 0.217,
+      "GRACE_48H": 0.096,
+      "PARTIAL_CHARGE": 0.461,
+      "METHOD_SWITCH": 0.446,
+      "NO_OP": 0.061
     },
     "arms_modelled": [
       "GRACE_48H",
@@ -38,7 +38,7 @@
     ],
     "oracle": {
       "n_with_a_winning_arm": 288,
-      "model_top_arm_is_a_winning_arm": 0.816
+      "model_top_arm_is_a_winning_arm": 0.75
     }
   }
 }

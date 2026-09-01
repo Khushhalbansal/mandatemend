@@ -27,9 +27,11 @@ timing follows Witzany & Kozina (2022).
 for insufficient-funds). Rows are inverse-propensity weighted (`w = 1/π`, clipped at 10)
 using the propensity stored at generation time.
 
-**Estimator.** `HistGradientBoostingClassifier(max_depth=4, learning_rate=0.08, max_iter=90,
-l2_regularization=1.0)`. `max_iter` was cut from 250 → 90 during iteration 4: the smaller
-model **generalises better here** (see below) and a whole-batch scored run is ~5× faster.
+**Estimator.** `HistGradientBoostingClassifier(max_depth=4, learning_rate=0.08, max_iter=200,
+l2_regularization=1.0)`. `max_iter` was cut from 250 → 90 for speed in iteration 4, then
+raised back to 200 in iteration 7 once batched inference (`Agent.warm`) removed the speed
+pressure — at 90 the model only *tied* the naive baseline on the reproducible training set;
+at 200 it beats it.
 
 **Held-out oracle check** (reporting only — never feeds training). On the frozen batch, for
 every mandate that has *some* winning RETRY bucket, does the model's argmax bucket land on a
@@ -37,13 +39,15 @@ winning one?
 
 | | value |
 |---|---|
-| model picks a winning delay | **~0.45** |
-| naive "+72h always" picks a winning delay | ~0.41 |
+| model picks a winning delay | **0.437** |
+| naive "+72h always" picks a winning delay | 0.412 |
 
 The model beats the naive fixed-schedule baseline (CLAUDE.md §8 "evaluated against a naive
-baseline"). It is not a strong classifier in absolute terms (`val_auc ~0.73`) — and that is
-honest: the failure event does not expose the customer's payday, so timing has to be inferred
-from `day_of_month × issuer × amount × history`, exactly as a real system would.
+baseline"), but only modestly. It is not a strong classifier in absolute terms
+(`val_auc ~0.68`) — and that is honest: the failure event does not expose the customer's
+payday, so timing has to be inferred from `day_of_month × issuer × amount × history`, exactly
+as a real system would. Most of the system's lift comes from the uplift model + the
+round-aware orchestration, not from point retry-timing.
 
 ---
 
@@ -77,8 +81,11 @@ arm a winning one?
 
 | | value |
 |---|---|
-| model top arm is a winning arm | **~0.82** |
+| model top arm is a winning arm | **0.75** |
 | (iteration 2, 2k training rows) | ~0.78 |
+
+(The iter-2 figure was measured on a non-reproducible, salted-`hash()` training set; 0.75 is
+the number on the deterministic set.)
 
 ---
 

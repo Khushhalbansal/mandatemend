@@ -27,18 +27,20 @@ ranks actions by *predicted success*. MandateMend is an open, UPI-native recover
 
 | metric | value |
 |---|---|
-| **recovery rate** | **62.06 %** (₹286,916 of ₹462,300 at risk) — 95 % CI [54.75 %, 69.22 %] |
-| **lift vs. static-retry** (24h / 72h / 168h ladder) | **+14.89 pp** — 95 % CI [7.18 pp, 23.46 pp], **entirely above zero** |
-| lift vs. single-retry / email-only | +37 pp / +42 pp |
+| **recovery rate** | **61.42 %** (₹283,942 of ₹462,300 at risk) — 95 % CI [54.03 %, 68.39 %] |
+| **lift vs. static-retry** (24h / 72h / 168h ladder) | **+14.24 pp** — 95 % CI [7.27 pp, 21.86 pp], **entirely above zero** |
+| lift vs. single-retry / email-only | +36 pp / +41 pp |
 | **NPCI compliance violations** | **0** — independently re-checked by `invariants.py` |
-| retries used / recoveries-per-retry | 230 / 0.87 |
-| harm / false-positive cost | ₹260 (paid outreach on mandates that never recovered) |
+| retries used / recoveries-per-retry | 295 / 0.69 |
+| harm / false-positive cost | ₹279 (paid outreach on mandates that never recovered) |
 | terminal state | every mandate ends **recovered** or **on the human queue** — never dropped |
 | one real Razorpay **test-mode** round-trip | `plink_…` created, HTTP 200, wired through the executor + audit ledger (`mandatemend live-check`) |
 
-CIs are a seeded, mandate-resampled 2000× bootstrap. Full iteration history (incl. the
-STOP-THE-LINE at iter 0 and the reverted regression at iter 5) is in
-[`logs/iterations.jsonl`](logs/iterations.jsonl).
+Numbers are **byte-reproducible**: `data/generator.py` is fully deterministic (stable
+`blake2b` seeds, not salted `hash()`), so `python data/generator.py && mandatemend train &&
+mandatemend score` gives the same result on any machine. CIs are a seeded, mandate-resampled
+2000× bootstrap. Full iteration history (incl. the STOP-THE-LINE at iter 0 and the reverted
+regression at iter 5) is in [`logs/iterations.jsonl`](logs/iterations.jsonl).
 
 Docs: **[ARCHITECTURE](docs/ARCHITECTURE.md)** · **[MODELS](docs/MODELS.md)** ·
 **[RESEARCH / track choice](docs/RESEARCH.md)** · **[data generation](data/GENERATION_NOTES.md)** ·
@@ -98,24 +100,25 @@ Runs entirely offline against synthetic data. Trained model artifacts are commit
 
 ```
 $ mandatemend score
-MandateMend batch scorecard  (v0.1.0, iteration 6)
+MandateMend batch scorecard  (v0.1.0, iteration 7)
   batch size                 300
   amount at risk             Rs 462,300
-  recovered (agent)          Rs 286,916   62.06%   95% CI [54.75%, 69.22%]
+  recovered (agent)          Rs 283,942   61.42%   95% CI [54.03%, 68.39%]
   baseline static-retry      47.18%
   baseline single-retry      24.96%
   baseline email-only        19.99%
-  LIFT vs static-retry       14.89%   95% CI [7.18%, 23.46%]
-  retries used (total)       230
-  recoveries / retry         0.8739
-  contacts on non-recovered  173   harm cost Rs 260
-  escalated to human         99
+  LIFT vs static-retry       14.24%   95% CI [7.27%, 21.86%]
+  retries used (total)       295
+  recoveries / retry         0.6915
+  contacts on non-recovered  186   harm cost Rs 279
+  escalated to human         96
   COMPLIANCE VIOLATIONS      0
   per cause:
     BANK_DOWNTIME        n=38   rec=34    89.47%  esc=4
-    INSUFFICIENT_FUNDS   n=134  rec=99    73.88%  esc=35
+    INSUFFICIENT_FUNDS   n=134  rec=96    71.64%  esc=38
+    TECH_DECLINE         n=59   rec=47    79.66%  esc=12
     ...
-  tests 80/80   lint_errors 0   type_errors 0
+  tests 82/82   lint_errors 0   type_errors 0
 ```
 
 ## Data & scoring isolation (CLAUDE.md §1.3)

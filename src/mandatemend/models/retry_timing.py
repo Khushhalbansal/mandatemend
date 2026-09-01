@@ -74,7 +74,7 @@ class RetryTimingModel:
         clf = HistGradientBoostingClassifier(
             max_depth=4,
             learning_rate=0.08,
-            max_iter=90,
+            max_iter=200,
             l2_regularization=1.0,
             random_state=0,
         )

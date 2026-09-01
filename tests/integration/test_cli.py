@@ -39,6 +39,9 @@ def test_verify_audit(capsys):
 def test_train_writes_artifacts(tmp_path, monkeypatch, capsys):
     from mandatemend.models import retry_timing, train, uplift
 
+    if not train.TRAIN_JSON.exists():
+        pytest.skip("run `python data/generator.py` first (training set is not committed)")
+
     r_art = tmp_path / "retry_timing.joblib"
     u_art = tmp_path / "uplift.joblib"
     monkeypatch.setattr(retry_timing, "ARTIFACT", r_art)

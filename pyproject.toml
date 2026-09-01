@@ -2,7 +2,7 @@
 name = "mandatemend"
 version = "0.1.0"
 description = "UPI AutoPay / e-mandate failure-recovery agent (Razorpay AI Buildathon, Track 03)"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 # Dependency hygiene (CLAUDE.md §6): minimal, maintained, money-handling core kept small.
 # pyproject declares compatible floors; `requirements-lock.txt` is the exact validated set
@@ -46,7 +46,7 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 110
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
