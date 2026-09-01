@@ -6,6 +6,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  # Deterministic runs: single-thread the GBM histogram reductions (their parallel float
+  # accumulation order isn't bit-stable across thread counts) and pin the hash seed.
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  PYTHONHASHSEED: "0"
+
 jobs:
   check:
     runs-on: ubuntu-latest
