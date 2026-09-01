@@ -73,6 +73,29 @@ def test_npci_cap_violation():
     assert any("NPCI_RETRY_CAP" in x for x in v)
 
 
+def test_npci_cap_boundary_exactly_three_charges_is_ok():
+    # exactly npci_max_retries (3) executed charges, each with a >=24h notice, is COMPLIANT —
+    # the checker must not flag the boundary (guards `>` vs `>=` in invariants.py rule 1).
+    ev = make_event()
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    retries = [
+        _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25 + i), amount=ev.amount_paise))
+        for i in range(3)
+    ]
+    v = check_resolution(ev, _res(notice, *retries, contacts=1))
+    assert not any("NPCI_RETRY_CAP" in x for x in v), v
+
+
+def test_amount_cap_boundary_charge_exactly_at_cap_is_ok():
+    # a charge for exactly the per-txn mandate cap is COMPLIANT (guards `>` vs `>=` in
+    # invariants.py rule 6).
+    ev = make_event(amount_paise=150_000, mandate_max_amount_paise=150_000)
+    notice = _ok(_act(ActionType.SEND_NOTIFICATION, at=NOW))
+    at_cap = _ok(_act(ActionType.RETRY, at=NOW + timedelta(hours=25), amount=150_000))
+    v = check_resolution(ev, _res(notice, at_cap, contacts=1))
+    assert not any("AMOUNT_OVER_CAP" in x for x in v), v
+
+
 def test_predebit_notice_violation():
     ev = make_event()
     retry = _ok(_act(ActionType.RETRY, at=NOW, amount=ev.amount_paise))  # no notice at all

@@ -53,6 +53,14 @@ jobs:
       - name: Tests — integration
         run: bash .github/run-tests.sh integration tests/integration --tb=short
 
+      - name: Tests — property (Hypothesis safety proofs, opt-in marker)
+        run: bash .github/run-tests.sh property tests/property --tb=short -m property
+
+      - name: Red-team adversarial battery (injection corpus, fuzzing, concurrency)
+        # Independent of pytest: prints a detection rate per group and exits non-zero if any
+        # group fails to hold. Gate on the full safety story, not just the unit slice.
+        run: python -c "import sys; from mandatemend.cli import main; sys.exit(main(['redteam']))"
+
       - name: Tests — e2e + coverage gate
         run: bash .github/run-tests.sh e2e "" --tb=short --cov=mandatemend --cov-report=term-missing --cov-fail-under=85
 

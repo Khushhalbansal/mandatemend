@@ -5,6 +5,108 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-01 — iteration 8: the unbeatable-safety-story pass (work-stream A)
+
+Goal (per the hardening plan): leave a panel with nothing to poke at on safety. No change
+to the recovery model this iteration — the primary 300-batch headline is unchanged; what
+changed is the *evidence* that the safety invariants actually hold.
+
+**A1. `docs/INVARIANTS.md`** — every safety/compliance property as a numbered proposition
+I1–I13, each mapped to (a) the enforcing code path, (b) the independent re-verification in
+`invariants.py`, (c) the tests that exercise it. I13 (AFA re-auth ceiling) is listed as
+planned (iteration 12) so the numbering is stable.
+
+**A2. Property-based tests (Hypothesis), `tests/property/`** — 10 properties, hundreds of
+generated cases each:
+  * `test_policy_invariants.py` (9): for any well-typed
+    `FailureEvent × TypedDiagnosis × RetryTimingAdvice × InterventionAdvice × LoopState`,
+    `PolicyEngine.decide` upholds I1–I8, the stopping rule, and I12 (fails closed on a
+    hostile advice object whose every attribute access raises).
+  * `test_agent_loop.py` (1): drives the whole `Agent.recover` loop with a scripted
+    adversarial diagnoser + advisors + a coin-flip gateway; asserts
+    `check_resolution == []`, `retries_used <= 3`, terminates RECOVERED xor ESCALATED in
+    `<= _MAX_ROUNDS`, audit chain verifies.
+  * Opt-in `property` marker; own CI step (`pytest -m property tests/property`).
+
+**Two real safety holes the property tests found and that are now fixed:**
+  1. **Dead-mandate charge via the economics-substitution fallback.** When a paid outreach
+     failed the economic floor, `engine.py` fell back to "plain retry instead" while only
+     re-checking that a notice was on file — not liveness, the NPCI cap, or the amount cap.
+     A PAUSED/EXPIRED mandate on that exact path got a `RETRY`. Fix: the fallback now
+     re-satisfies *every* charging precondition (`rule_mandate_live_for_charge`,
+     `rule_amount_within_cap`, `retries_used < npci_max_retries`, and the 24h notice gap)
+     before it may emit a retry; otherwise NO_ACTION.
+  2. **`CONTACT_FREQUENCY` blamed pre-session contacts.** The independent checker counted
+     every contact in the timeline against the flat weekly cap, so a mandate that *arrived*
+     already at 3 contacts was reported as a violation the agent hadn't caused. Fix: the
+     checker now compares the agent's *own* session contacts against the *remaining* weekly
+     budget (`max(0, cap - history.contacts_this_week)`). New test
+     `test_contact_frequency_ok_when_mandate_arrives_over_cap`; the existing
+     `test_contact_frequency_violation` was rewritten to 4 agent-made contacts (was
+     relying on the old semantics — assertion tightened, not weakened).
+
+**A3. `mandatemend redteam`** (`src/mandatemend/redteam.py`, `tests/integration/test_redteam.py`)
+— the wider adversarial battery, each group PASS/FAIL with a printed rate:
+  * **prompt-injection** — a 30-payload corpus (direct overrides, role-play, fake
+    delimiters, RLO/zero-width unicode, schema-coercion, urgency/authority) fed through an
+    LLM stub that *obeys* the injection. All 30: sanitizer-flagged, confidence capped ≤ 0.5,
+    and the policy engine still gates them to `NO_ACTION + requires_human`. **30/30.**
+  * **hostile-webhooks** — 10 malformed payloads (missing field, negative/zero/string
+    amount, 20 KB text, bad enum, bad datetime) → all 10 rejected at
+    `FailureEvent.model_validate` with a `ValidationError`, none partially built.
+  * **clock-skew** — far-future `occurred_at` + `retries_used=9` → engine still emits a
+    well-formed, non-charging Action.
+  * **ledger-outage** — `ledger.append` raises mid-`execute()` → executor fails closed,
+    ≤ 1 DB row, no double charge.
+  * **concurrent-load** — 60 mandates × 6 duplicate webhooks × 16 threads → exactly 60
+    `executed_action` rows, audit chain verifies. **5/5 groups held.**
+
+**Bug found writing A3 — `redteam.run_all()` wedged pytest for ~4.5 min.** It opened with
+`with contextlib.suppress(Exception): db_session.get_engine()`; with no engine bound that
+lazily builds one from the default **Postgres** URL, and the failed localhost:5432 connect
+left something that stalled process exit (the 5 groups themselves run in ~4 s). The line
+served no purpose — every group binds its own engine via `init_engine()` — so it was
+removed. Test now runs in ~2.5 s.
+
+**A3 sanitizer gap.** The first redteam run flagged only 20/30 injection payloads.
+`diagnosis/sanitize.py` `_INJECTION_PATTERNS` extended (~13 new regexes: forget-everything,
+`human:`/`assistant:` turn markers, "as the developer/admin", "I instruct/order you",
+`set cause/confidence to`, "the real cause is", schema-coercion `confidence=1`,
+`override:` / `policy_engine` / `bypass the gate`, `<system>`-style tags). Now 30/30
+flagged, still 0 false positives on the benign-message corpus (`test_sanitize.py`).
+
+**A4. Mutation testing.** Two passes, both documented in `docs/INVARIANTS.md`:
+  * `mutmut` (config in `setup.cfg`, on-demand, *not* a project dep — 3.x has no
+    native-Windows support, 2.5.1 runs but is noisy): 281 mutants over
+    `policy/rules.py` + `policy/engine.py` + `invariants.py`, 109 killed / 171 survived
+    (~39% raw). The survivor set is dominated by **non-behavioural** mutants — mutated
+    import aliases, docstrings, and the `detail=`/`reason=` f-strings that only populate the
+    human-readable rule trace (changing "confidence=%.2f" text doesn't change a decision).
+    Reported raw and unspun; the raw number is not the safety argument.
+  * **Targeted logic-mutation check** (`python scripts/mutcheck.py`): 14 hand-picked
+    *semantically meaningful* mutations — every comparison operator and boolean connective
+    in the compliance predicates and in the independent checker (`<`↔`<=`, `>`↔`>=`,
+    `or`↔`and`, cap-comparison flips). Each applied, the unit predicate/engine/checker
+    tests **and** the full property suite run, mutation reverted. **First run: 12/14
+    caught** — the two survivors were boundary gaps in the *independent checker's* own
+    tests: a charge count of *exactly* 3 and a charge amount *exactly* at the mandate cap
+    (both legal, neither pinned, so a `>`→`>=` mutation that makes the checker over-strict
+    slipped through). Added `test_npci_cap_boundary_exactly_three_charges_is_ok` +
+    `test_amount_cap_boundary_charge_exactly_at_cap_is_ok`. **Now 14/14.** (Also caught a
+    bug in the check script itself first — a stray `-m property` was deselecting the unit
+    tests, so run 0 spuriously showed 3/14; fixed to two separate pytest invocations.)
+
+**A5. CI gates** (`.github/workflows/ci.yml`): new steps `Tests — property` and
+`Red-team adversarial battery` between integration and the e2e/coverage gate.
+
+**Process note — a self-inflicted contaminated scorecard.** The first `mandatemend score`
+for iteration 8 ran its `pytest` subprocess *while `mutmut` was mutating `policy/` on disk*
+(I had both running in the background), so its line in `logs/iterations.jsonl` recorded
+`tests_passed 84/86`. A clean re-run with nothing else touching the tree gives **86/86**;
+that one field on the last line was corrected in place (recovery / lift / compliance were
+already correct — those come from the batch run, not pytest). Lesson: never run `mutmut`
+concurrently with anything that imports the modules under mutation.
+
 ### 2026-09-01 — deps: dropped `lifelines` + `pandas` (declared, never imported)
 The scaffold planned a `lifelines` survival fit for retry timing (see the 2026-09-01
 scaffold entry below); the model that actually shipped is an sklearn

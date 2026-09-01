@@ -15,6 +15,10 @@ venv/
 .coverage
 htmlcov/
 
+# Mutation testing (on-demand; config is in setup.cfg, results go in docs/INVARIANTS.md)
+.mutmut-cache
+*.py.bak
+
 # Data — generated training set is reproducible from a seed, not committed.
 # The FROZEN held-out batch IS committed (it is the contract; see CLAUDE.md §1.3).
 data/training_set.parquet

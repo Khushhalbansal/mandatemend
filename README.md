@@ -1,7 +1,7 @@
 # MandateMend
 
 [![CI](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml/badge.svg)](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml)
-&nbsp;coverage 91% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 80 tests
+&nbsp;coverage 90% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 96 tests (86 + 10 Hypothesis property tests) &nbsp;·&nbsp; `redteam` 5/5
 
 **A compliance-gated recovery agent for failed UPI AutoPay / e-mandate debits.**
 Razorpay AI Buildathon 2026 — Track 03 (AI Revenue Recovery), sub-angle 3A.
@@ -22,6 +22,14 @@ ranks actions by *predicted success*. MandateMend is an open, UPI-native recover
    and fail-closed on any error;
 5. writes an **append-only, hash-chained audit ledger**, re-verified for compliance by an
    independent checker (`invariants.py`) that lives *outside* the engine.
+
+Every safety property is written out as a numbered, independently-checkable proposition in
+[`docs/INVARIANTS.md`](docs/INVARIANTS.md) (I1–I13), and each is proven three ways: a
+targeted unit test, a **Hypothesis property test** over hundreds of generated
+`event × diagnosis × advice × state` combinations, and the `mandatemend redteam` adversarial
+battery (30-payload prompt-injection corpus, hostile-webhook fuzzing, clock skew, mid-run
+ledger outage, 16-thread concurrent double-charge check). The property suite found and fixed
+two real safety holes this iteration — see *What broke*.
 
 ## Headline result — frozen 300-mandate held-out batch
 
@@ -90,7 +98,10 @@ mandatemend demo 5                         # trace one mandate end-to-end with i
 mandatemend serve                          # operator console
 mandatemend verify-audit                   # replay + verify the audit hash chain
 mandatemend failure-drill                  # 7 adversarial scenarios, live: inject X -> invariant held
+mandatemend redteam                        # wider adversarial battery: 30-payload injection corpus, webhook fuzzing, concurrency
 mandatemend live-check                     # one REAL Razorpay test-mode round-trip (needs keys in .env)
+
+pytest -m property tests/property          # Hypothesis safety proofs (opt-in marker; own CI step)
 ```
 
 Runs entirely offline against synthetic data. Trained model artifacts are committed, so
@@ -100,7 +111,7 @@ Runs entirely offline against synthetic data. Trained model artifacts are commit
 
 ```
 $ mandatemend score
-MandateMend batch scorecard  (v0.1.0, iteration 7)
+MandateMend batch scorecard  (v0.1.0, iteration 8)
   batch size                 300
   amount at risk             Rs 462,300
   recovered (agent)          Rs 283,942   61.42%   95% CI [54.03%, 68.39%]
@@ -118,7 +129,7 @@ MandateMend batch scorecard  (v0.1.0, iteration 7)
     INSUFFICIENT_FUNDS   n=134  rec=96    71.64%  esc=38
     TECH_DECLINE         n=59   rec=47    79.66%  esc=12
     ...
-  tests 82/82   lint_errors 0   type_errors 0
+  tests 86/86   lint_errors 0   type_errors 0
 ```
 
 ## Data & scoring isolation (CLAUDE.md §1.3)
@@ -153,6 +164,13 @@ Honest running log in [`CHANGELOG.md`](CHANGELOG.md):
 * **iter 5 regression, reverted per §3.2:** letting the mandate's standing notice cover
   retries within 72h *removed* the spacing the notice delay was implicitly enforcing —
   recovery fell to 59.5 %. Reverted; iter 4 stands.
+* **iter 8 — two safety holes the Hypothesis property tests found:** (1) a paid-outreach
+  economic-floor fallback in `engine.py` could emit a `RETRY` on a PAUSED/EXPIRED mandate
+  because it only re-checked the notice, not liveness / the NPCI cap / the amount cap —
+  now it re-checks *all* charging preconditions; (2) the independent `CONTACT_FREQUENCY`
+  check counted a mandate's *pre-session* contacts against the cap, so a mandate arriving
+  already over the weekly limit was mis-flagged — now it bounds the agent's *own* session
+  contacts by the *remaining* budget. Both fixed, both with new tests.
 
 ## Layout
 
@@ -165,11 +183,13 @@ src/mandatemend/
   executor/          gateway (Simulated | RazorpayTest) · executor (idempotent, DB-UNIQUE)
   audit/ledger.py    append-only hash chain
   invariants.py      independent compliance re-verification
+  redteam.py         wider adversarial battery (mandatemend redteam)
   agent.py           the bounded per-mandate recovery loop (warm() batches model inference)
   batch/             baselines · run_batch (scorecard + bootstrap CIs)
   live.py            one real Razorpay test-mode round-trip
   console/           FastAPI + Jinja operator console (dense, server-rendered, no build step)
-data/ · tests/ (unit · integration · e2e · live) · logs/iterations.jsonl · .github/workflows/ci.yml
+docs/INVARIANTS.md   I1–I13 · enforcing code + independent check + tests, per invariant
+data/ · tests/ (unit · integration · e2e · property · live) · logs/iterations.jsonl · .github/workflows/ci.yml
 ```
 
 MIT licensed.
