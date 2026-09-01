@@ -68,6 +68,8 @@ that sentence onto the code.
 | weekly contact cap | `rules.rule_contact_frequency` over `CONTACT_ACTIONS`; re-checked (`CONTACT_FREQUENCY`) |
 | never charge a dead mandate | `rules.rule_mandate_live_for_charge`; re-checked (`DEAD_MANDATE_CHARGE`) |
 | never charge above the per-txn cap | `rules.rule_amount_within_cap`; re-checked (`AMOUNT_OVER_CAP`) |
+| AFA: a debit above ₹15k needs a re-auth first, not a bare notice (I13) | `rules.rule_afa_exemption`; engine `afa_substitution` → `REQUEST_REAUTH`; re-checked (`AFA_EXEMPTION`). See `docs/NPCI.md` |
+| dead-mandate recovery is a re-auth request, not a debit | `REQUEST_REAUTH` (an outbound *contact*: contact-cap + quiet hours; never a charge). Demonstrated on the v2 batch — see `docs/MODELS.md §4e` |
 | low-confidence diagnosis → NO_ACTION + human | `rules.rule_confidence_gate` (`low_confidence_threshold = 0.55`) |
 | stopping rule | `rules.rule_stopping` (in-session hard declines ≥ retry budget) + the agent's contact/round-budget guards |
 | fail closed | `engine.decide` try/except → NO_ACTION + `requires_human`; `executor` gateway-exception path |
