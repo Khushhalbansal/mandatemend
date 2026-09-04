@@ -73,6 +73,11 @@ pythonpath = ["."]
 # `live` hits the real Razorpay API; `property` is the slow Hypothesis suite — both are
 # opt-in (`pytest -m live` / `pytest -m property`) and run as their own CI step.
 addopts = ["-m", "not live and not property"]
+filterwarnings = [
+    # Upstream-only: newer Starlette nudges its TestClient toward an as-yet-unreleased
+    # `httpx2`. Not our code; nothing to change until that ships.
+    "ignore:Using .httpx. with .starlette.testclient.:Warning",
+]
 markers = [
     "integration: needs a database",
     "e2e: full frozen-batch run",

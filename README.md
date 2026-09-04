@@ -40,7 +40,7 @@ two real safety holes this iteration — see *What broke*.
 | lift vs. single-retry / email-only | +38 pp / +43 pp |
 | **NPCI compliance violations** | **0** — independently re-checked by `invariants.py` |
 | retries used / recoveries-per-retry | 287 / 0.72 |
-| harm / false-positive cost | ₹272 (paid outreach on mandates that never recovered) |
+| harm / false-positive cost | ₹288 (paid outreach on mandates that never recovered) |
 | terminal state | every mandate ends **recovered** or **on the human queue** — never dropped |
 | one real Razorpay **test-mode** round-trip | `plink_…` created, HTTP 200, wired through the executor + audit ledger (`mandatemend live-check`) |
 
@@ -118,8 +118,8 @@ Runs entirely offline against synthetic data. Trained model artifacts are commit
 (gitignored) for `live-check`.
 
 ```
-$ mandatemend score
-MandateMend batch scorecard  (v0.1.0, iteration 16)
+$ mandatemend score          # the iteration number increments per logged run
+MandateMend batch scorecard  (v0.1.0, iteration 17)
   batch size                 300
   amount at risk             Rs 462,300
   recovered (agent)          Rs 293,588   63.51%   95% CI [56.28%, 70.45%]
@@ -129,7 +129,7 @@ MandateMend batch scorecard  (v0.1.0, iteration 16)
   LIFT vs static-retry       16.33%   95% CI [9.94%, 23.81%]
   retries used (total)       287
   recoveries / retry         0.7247
-  contacts on non-recovered  181   harm cost Rs 272
+  contacts on non-recovered  192   harm cost Rs 288
   escalated to human         92
   COMPLIANCE VIOLATIONS      0
   per cause (rate with 95% Wilson CI):
