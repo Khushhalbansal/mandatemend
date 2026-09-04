@@ -1,7 +1,7 @@
 # MandateMend
 
 [![CI](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml/badge.svg)](https://github.com/Khushhalbansal/mandatemend/actions/workflows/ci.yml)
-&nbsp;coverage ~90% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 112 tests + 10 Hypothesis property tests &nbsp;·&nbsp; `redteam` 5/5 &nbsp;·&nbsp; mutation check 17/17
+&nbsp;coverage ~91% &nbsp;·&nbsp; ruff + mypy clean &nbsp;·&nbsp; 112 tests + 10 Hypothesis property tests &nbsp;·&nbsp; `redteam` 5/5 &nbsp;·&nbsp; mutation check 17/17
 
 **A compliance-gated recovery agent for failed UPI AutoPay / e-mandate debits.**
 Razorpay AI Buildathon 2026 — Track 03 (AI Revenue Recovery), sub-angle 3A.
@@ -45,7 +45,7 @@ two real safety holes this iteration — see *What broke*.
 | one real Razorpay **test-mode** round-trip | `plink_…` created, HTTP 200, wired through the executor + audit ledger (`mandatemend live-check`) |
 
 **Cross-check on a disjoint 1000-mandate batch** (`mandatemend score --batch v2`): recovery
-**63.45 %** (95 % CI [59.5 %, 67.3 %]) — the absolute number holds. Lift there is **+8.65 pp**,
+**64.38 %** (95 % CI [60.4 %, 68.2 %]) — the absolute number holds. Lift there is **+9.58 pp**,
 lower only because that batch's static-retry baseline (54.8 %) is easier than the primary's
 (47.2 %) — same agent, different baseline draw. **The stable, honest number is the absolute
 recovery rate; lift is baseline-sensitive.** 0 compliance violations at 1000 mandates. See
@@ -187,9 +187,11 @@ Honest running log in [`CHANGELOG.md`](CHANGELOG.md):
   bucket tried — poisoning the `RETRY@24h` bucket a transient `TECH_DECLINE` wins on. The
   T-learner ranks `PARTIAL_CHARGE` top for `TECH_DECLINE`; the heuristic never does. Fix:
   only `RETRY_ONLY` passes the override. **61.42 → 63.51 %**, `TECH_DECLINE` recovery
-  79.7 → 86.4 %, retries *down*, 0 violations. A 1.7 pp gap to `survival + heuristic`
-  remains (thin buckets); the shipped default decision is deferred to the 1000-mandate v2
-  batch.
+  79.7 → 86.4 %, retries *down*, 0 violations. A **~2.8 pp** gap to `survival + heuristic`
+  remains on the primary batch, and iteration 12's re-auth work removed the v2 tiebreaker
+  that had justified shipping the T-learner — it now stays shipped as a **design choice**
+  (causal-uplift ranking, extends to new arms by retraining), not a metric win. Documented
+  open call: [`docs/MODELS.md §4d`](docs/MODELS.md).
 
 ## Layout
 

@@ -208,13 +208,13 @@
       },
       {
         "config": "heuristic_retry + heuristic_uplift",
-        "recovery_rate": 0.5621,
-        "lift_vs_static_pp": 0.0904
+        "recovery_rate": 0.5731,
+        "lift_vs_static_pp": 0.1014
       },
       {
         "config": "survival_retry + heuristic_uplift",
-        "recovery_rate": 0.6523,
-        "lift_vs_static_pp": 0.1805
+        "recovery_rate": 0.6633,
+        "lift_vs_static_pp": 0.1915
       },
       {
         "config": "heuristic_retry + t_learner_uplift",

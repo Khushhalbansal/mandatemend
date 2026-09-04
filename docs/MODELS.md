@@ -164,8 +164,8 @@ orchestration held fixed):
 | config | recovery | lift vs static-retry |
 |---|---:|---:|
 | naive static-retry ladder (no agent) | 47.18 % | +0.00 |
-| heuristic retry + heuristic uplift | 56.21 % | +9.04 |
-| **survival retry + heuristic uplift** | **65.23 %** | **+18.05** |
+| heuristic retry + heuristic uplift | 57.31 % | +10.14 |
+| **survival retry + heuristic uplift** | **66.33 %** | **+19.15** |
 | heuristic retry + T-learner uplift | 51.83 % | +4.66 |
 | survival retry + T-learner uplift *(shipped)* | **63.51 %** | **+16.33** |
 
@@ -184,41 +184,54 @@ didn't. Fix: only `RETRY_ONLY` passes the override now. Result: shipped **61.42 
 (+2.1 pp), the entire `TECH_DECLINE` bleed (4 mandates / ₹6.4 k) gone, retries *down*
 295 → 287, 0 compliance violations.
 
-**Residual gap on the primary batch: 1.7 pp.** `survival + heuristic` (65.23 %) still leads
-the shipped `survival + T-learner` (63.51 %). What remains is concentrated in
-`LIMIT_EXCEEDED` (n = 2) and the dead-mandate buckets (`MANDATE_PAUSED/EXPIRED`, n ≈ 4) —
-the T-learner steers to `OFFER_ALTERNATE_METHOD` where the heuristic's WhatsApp-link path
-does better — while the T-learner is clearly *ahead* on the big `INSUFFICIENT_FUNDS` bucket
-(+16 mandates / ₹32 k recovered that the heuristic misses).
+**Residual gap on the primary batch: 2.8 pp.** `survival + heuristic` (66.33 %) leads the
+shipped `survival + T-learner` (63.51 %). What remains is concentrated in `LIMIT_EXCEEDED`
+and the dead-mandate buckets (`MANDATE_PAUSED/EXPIRED`) — the T-learner steers to
+`OFFER_ALTERNATE_METHOD` / `REQUEST_REAUTH` where the heuristic's WhatsApp-link path does
+better on this small sample — while the T-learner is *ahead* on the big `INSUFFICIENT_FUNDS`
+bucket. Iteration 12's re-auth work widened this gap from the 1.7 pp measured at iteration 9
+(the dead-mandate substitution changed how both configs behave on paused/expired mandates).
 
-### 4d. v2 cross-check (iteration 11) — the T-learner question, resolved
+### 4d. v2 cross-check — the T-learner question, still open
 
-Same ablation on the disjoint **1000-mandate v2 batch** (3× the per-cause sample):
+Same ablation on the disjoint **1000-mandate v2 batch** (3× the per-cause sample), current
+numbers (`mandatemend eval --ablation --batch v2`; run without the re-auth supplement, so the
+shipped row reads 63.06 % here vs 64.38 % from `score --batch v2`):
 
 | config | v2 recovery | v2 lift | primary lift |
 |---|---:|---:|---:|
 | naive static-retry | 54.80 % | +0.00 | +0.00 |
-| heuristic + heuristic | 56.69 % | +1.89 | +9.04 |
-| survival + heuristic | 62.92 % | +8.12 | +18.05 |
-| heuristic + T-learner | 52.48 % | **−2.32** | +4.66 |
-| **survival + T-learner *(shipped)*** | **63.45 %** | **+8.65** | +16.33 |
+| heuristic + heuristic | 57.09 % | +2.29 | +10.14 |
+| survival + heuristic | **63.32 %** | **+8.52** | +19.15 |
+| heuristic + T-learner | 52.09 % | **−2.71** | +4.66 |
+| **survival + T-learner *(shipped)*** | 63.06 % | +8.26 | +16.33 |
 
-**On v2 the shipped `survival + T-learner` is the best of the five** — it edges
-`survival + heuristic` by +0.5 pp, the reverse of the primary batch's −1.7 pp. The two
-batches disagree on the *sign* of a sub-2 pp difference; the larger, more trustworthy batch
-favours the shipped config. **Conclusion: keep `survival + T-learner` as the shipped
-default.** The 9c `PARTIAL_CHARGE` bug was the real defect; once fixed, the two intervention
-advisors are statistically indistinguishable and the T-learner is *not* net-negative.
+**`survival + heuristic-uplift` now leads on *both* batches** — by 2.8 pp on the primary and
+0.3 pp (a statistical tie) on v2. Iteration 11 first ran this and v2 put the T-learner
+marginally *ahead* (+0.5 pp); that tiebreaker is what shipped it. Iteration 12's re-auth
+work shifted the ablation and the tiebreaker is gone. Both configs hold **0 compliance
+violations** on both batches.
 
-Two things v2 makes clear that the 300-batch could not:
-- **The T-learner needs the survival retry model + orchestration to be net-positive.**
-  `heuristic retry + T-learner` scores −2.32 pp — *below the naive ladder*. The uplift
-  ranking only pays off inside the full round-aware loop.
-- **Lift is baseline-sensitive; absolute recovery is not.** The agent recovers ~63.5 % on
-  *both* batches (primary 63.51 %, v2 63.45 %, v2 95 % CI [59.5 %, 67.3 %]), but v2's
-  static-retry baseline is 54.8 % vs the primary's 47.2 %, so v2 lift is +8.65 pp vs primary
-  +16.33 pp. The stable, honest number is the **absolute recovery rate**; the lift depends
-  on which baseline draw the batch happens to contain.
+**The T-learner stays the shipped default as a design choice, not a metric win:**
+- it ranks interventions by **causal uplift against doing nothing** (`P_arm(recover|x) −
+  P_NO_OP(recover|x)`), the property this whole system exists to demonstrate; the heuristic
+  uplift is a fixed cause→arm lookup with no counterfactual reasoning;
+- it extends to new arms (`REAUTH_LINK`) by retraining, where the heuristic needs a
+  hand-written rule per arm;
+- inside the full loop it is not net-negative — but note `heuristic retry + T-learner`
+  scores **−2.71 pp on v2**, *below* the naive ladder, so the uplift ranking only pays off
+  with the survival retry model and round-aware orchestration underneath it.
+
+**This is a documented open call.** If the priority is the headline recovery number on the
+frozen batch, `survival + heuristic-uplift` is 2.8 pp better on the primary and should be
+shipped — the trade is losing the causal-uplift story. `mandatemend eval --ablation
+[--batch v2]` reproduces both columns.
+
+**Lift is baseline-sensitive; absolute recovery is not.** The agent recovers ~63.5–64.4 % on
+*both* batches (primary 63.51 %, v2 64.38 % with re-auth / 95 % CI [60.4 %, 68.2 %]), but
+v2's static-retry baseline is 54.8 % vs the primary's 47.2 %, so v2 lift is +9.58 pp vs
+primary +16.33 pp. The stable, honest number is the **absolute recovery rate**; the lift
+depends on which baseline draw the batch happens to contain.
 
 ### 4e. Re-authorization path on v2 (iteration 12c)
 

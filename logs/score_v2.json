@@ -1,8 +1,8 @@
 {
-  "iteration": 15,
-  "ts": "2026-09-01T20:29:11.870485Z",
-  "git_sha": "7cce3f1",
-  "note": "[batch=v2 +reauth] 12c v2 + reauth | audit_chain: chain OK across 7571 entries",
+  "iteration": 17,
+  "ts": "2026-09-04T10:45:13.119703Z",
+  "git_sha": "5cd5486",
+  "note": "[batch=v2 +reauth] v2 refresh for docs | audit_chain: chain OK across 7571 entries",
   "tests_passed": 0,
   "tests_total": 0,
   "lint_errors": 0,
