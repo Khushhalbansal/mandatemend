@@ -5,6 +5,37 @@ Newest first. Do not retroactively clean this up — the failures are pitch mate
 
 ## [unreleased]
 
+### 2026-09-04 — pitch-material refresh; the shipped-config tiebreaker went stale
+
+Session task: delete the orphan `docs/FIGMA_INTEGRATION.md`, and re-pull every number
+in the pitch material (README, `docs/PITCH.md`, `docs/MODELS.md`) from a fresh
+`mandatemend score` / `eval` run rather than trusting the hand-written copies.
+
+Most were pure staleness (coverage badge ~90→~91 %; v2 cross-check 63.45 → 64.38 % /
++8.65 → +9.58 pp, moved because iter-12c's re-auth supplement is now present).
+
+**One was substantive.** `mandatemend eval --ablation` now reads:
+
+| batch | `survival + heuristic-uplift` | shipped `survival + T-learner` | gap |
+|---|---:|---:|---:|
+| primary (300) | 66.33 % | 63.51 % | heuristic +2.8 pp |
+| v2 (1000) | 63.32 % | 63.06 % | heuristic +0.3 pp |
+
+`survival + heuristic-uplift` now leads on **both** batches. At iteration 11 the v2 run
+put the T-learner **+0.5 pp ahead**, and that was the tiebreaker that justified shipping
+it (`MODELS.md §4d` was titled "…the T-learner question, resolved"). Iteration 12's
+re-auth work (the dead-mandate → `REQUEST_REAUTH` substitution) shifted how both advisor
+pairs behave on paused/expired mandates and the tiebreaker is gone.
+
+Not treated as a regression / no revert: both configs hold **0 compliance violations**
+on both batches, and the shipped headline (63.51 % / +16.33 pp) is unchanged and
+byte-reproducible. `MODELS.md §4d` retitled "**still open**" and now states plainly that
+the T-learner stays shipped as a **design choice** — it ranks by causal uplift vs doing
+nothing (the property this system exists to demonstrate) and extends to new arms by
+retraining — **not** as a metric win, and that switching to `survival + heuristic-uplift`
+(2.8 pp better on the primary) is a documented open call for the human to make. Per
+CLAUDE.md §1.2 the project has converged; this is flagged, not acted on.
+
 ### 2026-09-02 — iteration 12d (work-stream G): interpretability
 
 - **Global — permutation importance** for the retry-timing model and the two data-heavy
