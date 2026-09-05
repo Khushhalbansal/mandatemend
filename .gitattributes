@@ -2,6 +2,7 @@
 *.png binary
 *.joblib binary
 *.parquet binary
+*.pptx binary
 # The frozen held-out batch is the scoring contract — pin it to LF, never normalize (CLAUDE.md §1.3/§3.1)
 data/heldout_batch.frozen.json     -text
 data/heldout_labels.frozen.json    -text

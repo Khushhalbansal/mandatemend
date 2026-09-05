@@ -59,8 +59,9 @@ regression at iter 5) is in [`logs/iterations.jsonl`](logs/iterations.jsonl).
 
 Docs: **[ARCHITECTURE](docs/ARCHITECTURE.md)** · **[MODELS](docs/MODELS.md)** ·
 **[INVARIANTS (I1–I13)](docs/INVARIANTS.md)** · **[NPCI rules](docs/NPCI.md)** ·
-**[PITCH (5-min beat sheet)](docs/PITCH.md)** · **[RESEARCH / track choice](docs/RESEARCH.md)** ·
-**[data generation](data/GENERATION_NOTES.md)** · **[CHANGELOG — what broke](CHANGELOG.md)**
+**[PITCH (5-min beat sheet)](docs/PITCH.md)** · **[PITCH DECK (.pptx, 17 slides)](docs/MandateMend_Pitch_Deck.pptx)** ·
+**[RESEARCH / track choice](docs/RESEARCH.md)** · **[data generation](data/GENERATION_NOTES.md)** ·
+**[CHANGELOG — what broke](CHANGELOG.md)**
 
 ## Architecture (trust boundary)
 
